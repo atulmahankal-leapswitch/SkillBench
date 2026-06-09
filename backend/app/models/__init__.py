@@ -3,6 +3,7 @@
 from app.models.candidate import Candidate, user_candidate_assignments
 from app.models.organization import Organization
 from app.models.question import Question
+from app.models.schedule import Invitation, Schedule
 from app.models.test import Test, TestQuestion
 from app.models.user import (
     Permission,
@@ -24,4 +25,6 @@ __all__ = [
     "Question",
     "Test",
     "TestQuestion",
+    "Schedule",
+    "Invitation",
 ]

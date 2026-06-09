@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     )
     allowed_admin_email_domains: str = "leapswitch.com"
 
+    # Email (SMTP) for invitations / notifications
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "SkillBench <no-reply@example.com>"
+
     # AI (multi-provider; used in the AI phase)
     ai_provider: str = "anthropic"
     ai_model: str = "claude-opus-4-8"

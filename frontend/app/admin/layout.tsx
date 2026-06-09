@@ -9,6 +9,7 @@ const NAV = [
   { href: "/admin/candidates", label: "Candidates" },
   { href: "/admin/questions", label: "Questions" },
   { href: "/admin/tests", label: "Tests" },
+  { href: "/admin/schedules", label: "Schedules" },
 ];
 
 export default async function AdminLayout({

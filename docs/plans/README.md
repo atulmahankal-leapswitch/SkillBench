@@ -10,7 +10,7 @@ time; each is committed to GitHub when complete.
 | 00 | Foundation & scaffolding           | ✅     | [plan](phase-00-foundation.md)                  |
 | 01 | Auth & RBAC (Google OAuth, roles)  | ✅     | [plan](phase-01-auth-rbac.md)                   |
 | 02 | Core CRUD (Candidates/Questions/Tests) | ✅ | [plan](phase-02-core-crud.md)                   |
-| 03 | Scheduling & invitations           | ⬜     | [plan](phase-03-scheduling-invites.md)          |
+| 03 | Scheduling & invitations           | ✅     | [plan](phase-03-scheduling-invites.md)          |
 | 04 | Candidate exam-taking              | ⬜     | [plan](phase-04-exam-taking.md)                 |
 | 05 | Grading & results                  | ⬜     | [plan](phase-05-grading-results.md)             |
 | 06 | Code execution (Judge0)            | ⬜     | [plan](phase-06-code-execution.md)              |
@@ -42,4 +42,6 @@ time; each is committed to GitHub when complete.
   test↔question membership, user↔candidate assignment + assignment-aware
   visibility, migration `0002`, and admin CRUD screens for all three. Verified
   end-to-end (live API flow + frontend build + stack smoke).
-- **Next:** Phase 03 — Scheduling & invitations.
+- **Phase 03** complete: schedules + tokened invitations, email send/resend/
+  revoke, public invite-validation endpoint, admin schedules UI. Verified live.
+- **Next:** Phase 04 — Candidate exam-taking.

@@ -100,3 +100,26 @@ export type Test = Omit<TestSummary, "question_count"> & {
   settings: Record<string, unknown>;
   questions: TestQuestion[];
 };
+
+export type ScheduleStatus =
+  | "scheduled"
+  | "in_progress"
+  | "completed"
+  | "expired"
+  | "cancelled";
+
+export type Schedule = {
+  id: string;
+  status: ScheduleStatus;
+  start_at: string;
+  end_at: string;
+  candidate: { id: string; full_name: string; email: string };
+  test: { id: string; title: string; duration_minutes: number };
+  invitation: {
+    token: string;
+    expires_at: string;
+    sent_at: string | null;
+    revoked_at: string | null;
+  } | null;
+  created_at: string;
+};
