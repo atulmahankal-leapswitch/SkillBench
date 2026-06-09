@@ -1,6 +1,6 @@
 """JWT issuance/verification, OAuth state signing, and cookie helpers."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from itsdangerous import BadSignature, URLSafeTimedSerializer
@@ -18,7 +18,7 @@ _state_serializer = URLSafeTimedSerializer(
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def create_token(subject: str, token_type: str, expires: timedelta, **claims) -> str:

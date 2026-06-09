@@ -1,7 +1,15 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { fetchCurrentUser } from "@/lib/api";
 import LogoutButton from "./logout-button";
+
+const NAV = [
+  { href: "/admin", label: "Dashboard" },
+  { href: "/admin/candidates", label: "Candidates" },
+  { href: "/admin/questions", label: "Questions" },
+  { href: "/admin/tests", label: "Tests" },
+];
 
 export default async function AdminLayout({
   children,
@@ -9,8 +17,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const cookieHeader = cookieStore.toString();
-  const user = await fetchCurrentUser(cookieHeader);
+  const user = await fetchCurrentUser(cookieStore.toString());
 
   if (!user) {
     redirect("/login");
@@ -28,7 +35,20 @@ export default async function AdminLayout({
           background: "var(--card)",
         }}
       >
-        <strong>SkillBench Admin</strong>
+        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          <strong>SkillBench</strong>
+          <nav style={{ display: "flex", gap: 18 }}>
+            {NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{ color: "var(--muted)", fontSize: 14 }}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ color: "var(--muted)", fontSize: 14 }}>
             {user.email}
@@ -36,7 +56,7 @@ export default async function AdminLayout({
           <LogoutButton />
         </div>
       </header>
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto", padding: "32px 24px" }}>
         {children}
       </div>
     </div>

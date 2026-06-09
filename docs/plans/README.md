@@ -9,7 +9,7 @@ time; each is committed to GitHub when complete.
 | -- | ---------------------------------- | ------ | ----------------------------------------------- |
 | 00 | Foundation & scaffolding           | ✅     | [plan](phase-00-foundation.md)                  |
 | 01 | Auth & RBAC (Google OAuth, roles)  | ✅     | [plan](phase-01-auth-rbac.md)                   |
-| 02 | Core CRUD (Candidates/Questions/Tests) | ⬜ | [plan](phase-02-core-crud.md)                   |
+| 02 | Core CRUD (Candidates/Questions/Tests) | ✅ | [plan](phase-02-core-crud.md)                   |
 | 03 | Scheduling & invitations           | ⬜     | [plan](phase-03-scheduling-invites.md)          |
 | 04 | Candidate exam-taking              | ⬜     | [plan](phase-04-exam-taking.md)                 |
 | 05 | Grading & results                  | ⬜     | [plan](phase-05-grading-results.md)             |
@@ -37,5 +37,9 @@ time; each is committed to GitHub when complete.
   JWT cookie sessions, RBAC (13 permissions, 4 system roles), org/user
   provisioning, Alembic + seeded migration, guarded `/admin` frontend.
   Verified end-to-end against a live stack.
-- **Next:** Phase 02 — Core CRUD (Candidates, Questions, Tests). Includes the
-  deferred user↔candidate assignment link.
+- **Phase 02** complete: Candidate / Question / Test CRUD (org-scoped, RBAC-
+  gated, paginated/searchable), per-type question payload validation, ordered
+  test↔question membership, user↔candidate assignment + assignment-aware
+  visibility, migration `0002`, and admin CRUD screens for all three. Verified
+  end-to-end (live API flow + frontend build + stack smoke).
+- **Next:** Phase 03 — Scheduling & invitations.

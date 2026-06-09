@@ -1,6 +1,9 @@
 """ORM models. Import all here so Base.metadata sees every table."""
 
+from app.models.candidate import Candidate, user_candidate_assignments
 from app.models.organization import Organization
+from app.models.question import Question
+from app.models.test import Test, TestQuestion
 from app.models.user import (
     Permission,
     Role,
@@ -16,4 +19,9 @@ __all__ = [
     "Permission",
     "user_roles",
     "role_permissions",
+    "Candidate",
+    "user_candidate_assignments",
+    "Question",
+    "Test",
+    "TestQuestion",
 ]

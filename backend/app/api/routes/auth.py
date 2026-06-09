@@ -5,9 +5,11 @@ from urllib.parse import urlencode
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.database import get_db
 from app.core.security import (
     ACCESS_COOKIE,
     REFRESH_COOKIE,
@@ -21,8 +23,6 @@ from app.models.user import User
 from app.schemas.auth import MeResponse, UserOut
 from app.services.auth import google
 from app.services.auth.provisioning import upsert_user_from_google
-from app.core.database import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

@@ -1,6 +1,6 @@
 """Provision organisations and users from a verified Google profile."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -86,7 +86,7 @@ async def upsert_user_from_google(
         user.full_name = profile.name or user.full_name
         user.avatar_url = profile.picture or user.avatar_url
 
-    user.last_login_at = datetime.now(timezone.utc)
+    user.last_login_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(user)
     return user

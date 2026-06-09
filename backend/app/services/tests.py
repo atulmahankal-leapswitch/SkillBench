@@ -1,0 +1,124 @@
+"""Test CRUD with ordered question membership, org-scoped."""
+
+import uuid
+from datetime import UTC, datetime
+
+from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.question import Question
+from app.models.test import Test, TestQuestion
+from app.models.user import User
+from app.schemas.test import TestCreate, TestQuestionRef, TestUpdate
+from app.services.pagination import paginate
+
+
+def _base_query(user: User):
+    return select(Test).where(
+        Test.organization_id == user.organization_id,
+        Test.deleted_at.is_(None),
+    )
+
+
+async def _validate_question_ids(
+    db: AsyncSession, user: User, refs: list[TestQuestionRef]
+) -> None:
+    ids = {r.question_id for r in refs}
+    if not ids:
+        return
+    found = set(
+        (
+            await db.execute(
+                select(Question.id).where(
+                    Question.id.in_(ids),
+                    Question.organization_id == user.organization_id,
+                    Question.deleted_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    missing = ids - found
+    if missing:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Unknown question(s): {sorted(map(str, missing))}",
+        )
+
+
+def _membership_rows(refs: list[TestQuestionRef]) -> list[TestQuestion]:
+    # Honour explicit positions but normalise to a stable 0..n ordering.
+    ordered = sorted(enumerate(refs), key=lambda p: (p[1].position, p[0]))
+    return [
+        TestQuestion(question_id=r.question_id, position=i, weight=r.weight)
+        for i, (_, r) in enumerate(ordered)
+    ]
+
+
+async def list_tests(
+    db: AsyncSession,
+    user: User,
+    *,
+    q: str | None,
+    status_: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[Test], int]:
+    stmt = _base_query(user)
+    if q:
+        stmt = stmt.where(Test.title.ilike(f"%{q}%"))
+    if status_:
+        stmt = stmt.where(Test.status == status_)
+    stmt = stmt.order_by(Test.created_at.desc())
+    return await paginate(db, stmt, limit, offset)
+
+
+async def get_test(db: AsyncSession, user: User, test_id: uuid.UUID) -> Test:
+    stmt = _base_query(user).where(Test.id == test_id)
+    test = (await db.execute(stmt)).scalar_one_or_none()
+    if test is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Test not found")
+    return test
+
+
+async def create_test(db: AsyncSession, user: User, data: TestCreate) -> Test:
+    await _validate_question_ids(db, user, data.questions)
+    test = Test(
+        organization_id=user.organization_id,
+        title=data.title,
+        description=data.description,
+        duration_minutes=data.duration_minutes,
+        pass_mark=data.pass_mark,
+        settings=data.settings,
+        created_by=user.id,
+        questions=_membership_rows(data.questions),
+    )
+    db.add(test)
+    await db.commit()
+    await db.refresh(test)
+    return test
+
+
+async def update_test(
+    db: AsyncSession, user: User, test_id: uuid.UUID, data: TestUpdate
+) -> Test:
+    test = await get_test(db, user, test_id)
+    fields = data.model_dump(exclude_unset=True)
+    new_questions = fields.pop("questions", None)
+    for field, value in fields.items():
+        setattr(test, field, value)
+    if new_questions is not None:
+        refs = [TestQuestionRef(**r) for r in new_questions]
+        await _validate_question_ids(db, user, refs)
+        test.questions = _membership_rows(refs)
+    await db.commit()
+    await db.refresh(test)
+    return test
+
+
+async def delete_test(db: AsyncSession, user: User, test_id: uuid.UUID) -> None:
+    test = await get_test(db, user, test_id)
+    test.deleted_at = datetime.now(UTC)
+    await db.commit()
