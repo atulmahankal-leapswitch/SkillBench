@@ -8,8 +8,8 @@ services:
       target: dev
     environment:
       ENVIRONMENT: development
-    # Live-reload backend on source changes.
-    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    # Apply migrations, then live-reload backend on source changes.
+    command: ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
     volumes:
       - ./backend:/app
       # Keep the container's virtualenv from being shadowed by the bind mount.

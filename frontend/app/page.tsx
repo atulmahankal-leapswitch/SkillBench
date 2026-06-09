@@ -27,6 +27,22 @@ export default function Home() {
         Hiring and internal evaluation — invite, assess, and benchmark talent.
       </p>
 
+      <p style={{ marginTop: 16 }}>
+        <a
+          href="/admin"
+          style={{
+            display: "inline-block",
+            padding: "10px 18px",
+            background: "var(--accent)",
+            color: "#fff",
+            borderRadius: 8,
+            fontWeight: 600,
+          }}
+        >
+          Admin sign-in →
+        </a>
+      </p>
+
       <section
         style={{
           display: "grid",

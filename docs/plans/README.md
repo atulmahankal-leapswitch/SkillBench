@@ -8,7 +8,7 @@ time; each is committed to GitHub when complete.
 | #  | Phase                              | Status | Plan                                            |
 | -- | ---------------------------------- | ------ | ----------------------------------------------- |
 | 00 | Foundation & scaffolding           | ✅     | [plan](phase-00-foundation.md)                  |
-| 01 | Auth & RBAC (Google OAuth, roles)  | ⬜     | [plan](phase-01-auth-rbac.md)                   |
+| 01 | Auth & RBAC (Google OAuth, roles)  | ✅     | [plan](phase-01-auth-rbac.md)                   |
 | 02 | Core CRUD (Candidates/Questions/Tests) | ⬜ | [plan](phase-02-core-crud.md)                   |
 | 03 | Scheduling & invitations           | ⬜     | [plan](phase-03-scheduling-invites.md)          |
 | 04 | Candidate exam-taking              | ⬜     | [plan](phase-04-exam-taking.md)                 |
@@ -30,7 +30,12 @@ time; each is committed to GitHub when complete.
 
 ## Current state
 
-- **Phase 00** is complete: repo skeleton, Docker Compose stack (Postgres,
-  Redis, FastAPI backend, Next.js frontend, Caddy), runnable health endpoints
-  and landing page, full docs/plan structure.
-- **Next:** Phase 01 — Auth & RBAC.
+- **Phase 00** complete: repo skeleton, Docker Compose stack (Postgres, Redis,
+  FastAPI backend, Next.js frontend, Caddy), health endpoints, landing page,
+  full docs/plan structure.
+- **Phase 01** complete: Google OAuth (org-domain restricted) admin sign-in,
+  JWT cookie sessions, RBAC (13 permissions, 4 system roles), org/user
+  provisioning, Alembic + seeded migration, guarded `/admin` frontend.
+  Verified end-to-end against a live stack.
+- **Next:** Phase 02 — Core CRUD (Candidates, Questions, Tests). Includes the
+  deferred user↔candidate assignment link.
