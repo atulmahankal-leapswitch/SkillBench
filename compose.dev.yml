@@ -1,0 +1,30 @@
+# Development override: hot-reload, source bind mounts, exposed ports.
+#   docker compose -f compose.yml -f compose.dev.yml up
+name: skillbench
+
+services:
+  backend:
+    build:
+      target: dev
+    environment:
+      ENVIRONMENT: development
+    # Live-reload backend on source changes.
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./backend:/app
+      # Keep the container's virtualenv from being shadowed by the bind mount.
+      - /app/.venv
+
+  frontend:
+    build:
+      target: dev
+    environment:
+      NODE_ENV: development
+    command: ["npm", "run", "dev"]
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+  # In dev we usually hit the services directly on their host ports, so Caddy
+  # is optional. Leave it running but it simply proxies localhost.

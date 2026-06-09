@@ -1,0 +1,27 @@
+# Production override: built images, no source mounts, no direct host ports for
+# app services (Caddy is the single public entrypoint).
+#   docker compose -f compose.yml -f compose.prod.yml up -d
+name: skillbench
+
+services:
+  backend:
+    build:
+      target: prod
+    environment:
+      ENVIRONMENT: production
+    # No published host port — reached via the compose network / Caddy only.
+    ports: !reset []
+
+  frontend:
+    build:
+      target: prod
+    environment:
+      NODE_ENV: production
+    ports: !reset []
+
+  db:
+    # Don't expose the database publicly in production.
+    ports: !reset []
+
+  redis:
+    ports: !reset []

@@ -1,0 +1,23 @@
+# Caddy reverse proxy for SkillBench.
+#
+# Dev: hit http://localhost — Caddy proxies the frontend and routes /api +
+# /docs to the backend. Services are also reachable directly on their host
+# ports during development.
+#
+# Prod: replace `:80` with your domain (e.g. assess.example.com) and Caddy will
+# obtain/renew TLS certificates automatically.
+
+:80 {
+	encode gzip
+
+	# Backend API and interactive docs.
+	@api path /api/* /docs /openapi.json /redoc
+	handle @api {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else goes to the Next.js frontend.
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
