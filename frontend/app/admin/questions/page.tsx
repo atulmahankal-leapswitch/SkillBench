@@ -154,6 +154,41 @@ export default function QuestionsPage() {
     }
   }
 
+  const [genTopic, setGenTopic] = useState("");
+  const [generating, setGenerating] = useState(false);
+
+  async function generate() {
+    if (!genTopic.trim()) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await api.post<{
+        questions: { type: string; prompt: string; difficulty: string; payload: Record<string, unknown> }[];
+      }>(`/ai/generate-questions`, {
+        topic: genTopic,
+        type: form.type,
+        difficulty: form.difficulty,
+        count: 1,
+      });
+      const g = res.questions[0];
+      if (g) {
+        const p = g.payload as Record<string, unknown>;
+        setForm({
+          ...form,
+          prompt: g.prompt,
+          options: (p.options as Option[]) ?? form.options,
+          correct_keys: (p.correct_keys as string[]) ?? [],
+          sample_answer: (p.sample_answer as string) ?? "",
+          rubric: (p.rubric as string) ?? "",
+        });
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   const isMcq = form.type === "mcq" || form.type === "multi_select";
 
   function toggleCorrect(key: string) {
@@ -254,6 +289,28 @@ export default function QuestionsPage() {
           onClose={() => setShowForm(false)}
         >
           <ErrorText message={error} />
+          {!editing && (
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginBottom: 14,
+                padding: 10,
+                border: "1px dashed var(--border)",
+                borderRadius: 8,
+              }}
+            >
+              <input
+                style={inputStyle}
+                placeholder="AI: topic to generate from…"
+                value={genTopic}
+                onChange={(e) => setGenTopic(e.target.value)}
+              />
+              <Button variant="ghost" onClick={generate} disabled={generating}>
+                {generating ? "Generating…" : "✨ Generate"}
+              </Button>
+            </div>
+          )}
           <Field label="Type">
             <select
               style={inputStyle}

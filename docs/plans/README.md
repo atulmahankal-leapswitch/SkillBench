@@ -15,7 +15,7 @@ time; each is committed to GitHub when complete.
 | 05 | Grading & results                  | ✅     | [plan](phase-05-grading-results.md)             |
 | 06 | Code execution (Judge0)            | ✅     | [plan](phase-06-code-execution.md)              |
 | 07 | Proctoring                         | ✅     | [plan](phase-07-proctoring.md)                  |
-| 08 | AI-assisted features               | ⬜     | [plan](phase-08-ai-features.md)                 |
+| 08 | AI-assisted features               | ✅     | [plan](phase-08-ai-features.md)                 |
 | 09 | Integrations (API + webhooks)      | ⬜     | [plan](phase-09-integrations.md)                |
 | 10 | Benchmarking & analytics           | ⬜     | [plan](phase-10-analytics.md)                   |
 | 11 | Anti-plagiarism / cheat detection  | ⬜     | [plan](phase-11-anti-plagiarism.md)             |
@@ -54,4 +54,7 @@ time; each is committed to GitHub when complete.
 - **Phase 07** complete: ProctorEvent model, candidate event/snapshot reporting,
   admin timeline + snapshot viewer, exam-UI monitoring (tab/focus/webcam/
   fullscreen/copy-paste), per-test toggles. Verified live.
-- **Next:** Phase 08 — AI-assisted features.
+- **Phase 08** complete: provider-agnostic AI (anthropic / claude_code_sdk /
+  openai / stub), generate-questions + score-text endpoints, AI text-grading
+  integration, question-gen UI. Verified live with stub.
+- **Next:** Phase 09 — Integrations (API + webhooks).

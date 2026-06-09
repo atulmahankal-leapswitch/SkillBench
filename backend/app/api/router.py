@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    ai,
     auth,
     candidates,
     exam,
@@ -23,3 +24,4 @@ api_router.include_router(schedules.router)
 api_router.include_router(schedules.public_router)
 api_router.include_router(exam.router)
 api_router.include_router(results.router)
+api_router.include_router(ai.router)

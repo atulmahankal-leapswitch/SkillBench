@@ -10,7 +10,7 @@ from app.models.enums import QuestionType
 from app.models.question import Question
 from app.models.result import QuestionResult, Result
 from app.models.test import Test
-from app.services import judge0
+from app.services import ai, judge0
 
 
 def _effective_points(tq) -> float:
@@ -63,6 +63,36 @@ async def grade_coding(
         )
 
 
+async def grade_text(q: Question, response: dict, max_pts: float) -> QuestionResult:
+    """AI-score a free-text answer when a provider is enabled, else flag review."""
+    answer = (response or {}).get("text", "")
+    if not ai.is_enabled() or not answer:
+        return QuestionResult(
+            question_id=q.id, points_awarded=0, max_points=max_pts,
+            is_correct=None, needs_review=True,
+        )
+    try:
+        payload = q.payload or {}
+        result = await ai.get_provider().score_text({
+            "prompt": q.prompt,
+            "answer": answer,
+            "rubric": payload.get("rubric", ""),
+            "sample_answer": payload.get("sample_answer", ""),
+            "max_points": max_pts,
+        })
+        score = max(0.0, min(float(result.get("score", 0)), max_pts))
+        return QuestionResult(
+            question_id=q.id, points_awarded=round(score, 2), max_points=max_pts,
+            is_correct=None, needs_review=True,  # AI suggestion; human confirms
+            feedback=str(result.get("rationale", "")),
+        )
+    except Exception:  # noqa: BLE001 - AI failure -> manual review
+        return QuestionResult(
+            question_id=q.id, points_awarded=0, max_points=max_pts,
+            is_correct=None, needs_review=True,
+        )
+
+
 def recompute_aggregate(result: Result, pass_mark: float) -> None:
     total = sum(float(qr.points_awarded) for qr in result.questions)
     mx = sum(float(qr.max_points) for qr in result.questions)
@@ -111,16 +141,8 @@ async def grade_attempt(db: AsyncSession, attempt: Attempt) -> Result:
         elif qtype == QuestionType.CODING:
             result.questions.append(await grade_coding(q, resp, max_pts))
         else:
-            # text: await human (or AI in Phase 08)
-            result.questions.append(
-                QuestionResult(
-                    question_id=q.id,
-                    points_awarded=0,
-                    max_points=max_pts,
-                    is_correct=None,
-                    needs_review=True,
-                )
-            )
+            # text: AI-suggested score when enabled, else manual review.
+            result.questions.append(await grade_text(q, resp, max_pts))
 
     recompute_aggregate(result, test.pass_mark)
     result.graded_at = datetime.now(UTC)
