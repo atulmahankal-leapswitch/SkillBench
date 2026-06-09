@@ -12,7 +12,7 @@ time; each is committed to GitHub when complete.
 | 02 | Core CRUD (Candidates/Questions/Tests) | ✅ | [plan](phase-02-core-crud.md)                   |
 | 03 | Scheduling & invitations           | ✅     | [plan](phase-03-scheduling-invites.md)          |
 | 04 | Candidate exam-taking              | ✅     | [plan](phase-04-exam-taking.md)                 |
-| 05 | Grading & results                  | ⬜     | [plan](phase-05-grading-results.md)             |
+| 05 | Grading & results                  | ✅     | [plan](phase-05-grading-results.md)             |
 | 06 | Code execution (Judge0)            | ⬜     | [plan](phase-06-code-execution.md)              |
 | 07 | Proctoring                         | ⬜     | [plan](phase-07-proctoring.md)                  |
 | 08 | AI-assisted features               | ⬜     | [plan](phase-08-ai-features.md)                 |
@@ -47,4 +47,6 @@ time; each is committed to GitHub when complete.
 - **Phase 04** complete: attempt lifecycle (server-enforced timing/auto-submit),
   token-auth exam API, candidate-safe questions (no answer leakage), exam runner
   UI with autosave/resume/countdown. Verified live.
-- **Next:** Phase 05 — Grading & results.
+- **Phase 05** complete: auto-grading on submit, Result/QuestionResult model,
+  admin results list/detail/override + CSV export, results UI. Verified live.
+- **Next:** Phase 06 — Code execution (Judge0).

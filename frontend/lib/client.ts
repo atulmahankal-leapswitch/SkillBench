@@ -101,6 +101,50 @@ export type Test = Omit<TestSummary, "question_count"> & {
   questions: TestQuestion[];
 };
 
+export type ResultSummary = {
+  attempt_id: string;
+  candidate_name: string;
+  candidate_email: string;
+  test_title: string;
+  attempt_status: string;
+  total_points: number;
+  max_points: number;
+  percent: number;
+  passed: boolean;
+  needs_review: boolean;
+  submitted_at: string | null;
+};
+
+export type QuestionResult = {
+  id: string;
+  question_id: string;
+  points_awarded: number;
+  max_points: number;
+  is_correct: boolean | null;
+  needs_review: boolean;
+  feedback: string;
+  prompt: string;
+  type: string;
+  response: Record<string, unknown>;
+  payload: Record<string, unknown>;
+};
+
+export type ResultDetail = {
+  attempt_id: string;
+  candidate_name: string;
+  candidate_email: string;
+  test_title: string;
+  pass_mark: number;
+  attempt_status: string;
+  total_points: number;
+  max_points: number;
+  percent: number;
+  passed: boolean;
+  needs_review: boolean;
+  graded_at: string | null;
+  questions: QuestionResult[];
+};
+
 export type ScheduleStatus =
   | "scheduled"
   | "in_progress"

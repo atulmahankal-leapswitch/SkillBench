@@ -12,6 +12,7 @@ from app.models.enums import AttemptStatus, ScheduleStatus
 from app.models.schedule import Invitation, Schedule
 from app.models.test import Test
 from app.schemas.exam import AnswerSubmit, ExamState, build_public_question
+from app.services.grading import grade_attempt
 from app.services.schedules import effective_status, get_invitation_by_token
 
 
@@ -44,6 +45,7 @@ async def _enforce_expiry(db: AsyncSession, attempt: Attempt) -> None:
         attempt.submitted_at = attempt.expires_at
         await db.commit()
         await db.refresh(attempt)
+        await grade_attempt(db, attempt)
 
 
 async def _build_state(
@@ -163,4 +165,5 @@ async def submit_attempt(db: AsyncSession, token: str) -> ExamState:
         schedule.status = ScheduleStatus.COMPLETED
         await db.commit()
         await db.refresh(attempt)
+        await grade_attempt(db, attempt)
     return await _build_state(db, schedule, attempt)

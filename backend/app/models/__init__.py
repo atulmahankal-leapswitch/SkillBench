@@ -4,6 +4,7 @@ from app.models.attempt import Answer, Attempt
 from app.models.candidate import Candidate, user_candidate_assignments
 from app.models.organization import Organization
 from app.models.question import Question
+from app.models.result import QuestionResult, Result
 from app.models.schedule import Invitation, Schedule
 from app.models.test import Test, TestQuestion
 from app.models.user import (
@@ -30,4 +31,6 @@ __all__ = [
     "Invitation",
     "Attempt",
     "Answer",
+    "Result",
+    "QuestionResult",
 ]
