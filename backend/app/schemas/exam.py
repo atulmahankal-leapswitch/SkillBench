@@ -63,6 +63,8 @@ class ExamState(BaseModel):
     # Only populated once the attempt has started.
     questions: list[PublicQuestion]
     answers: dict[str, Any]
+    # Per-test proctoring toggles (webcam, tab_switch, fullscreen, block_copy_paste).
+    proctoring: dict[str, Any] = {}
 
 
 class AnswerSubmit(BaseModel):

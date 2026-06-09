@@ -23,6 +23,13 @@ import {
 
 type Picked = { question_id: string; prompt: string; weight: string };
 
+type Proctoring = {
+  webcam: boolean;
+  tab_switch: boolean;
+  fullscreen: boolean;
+  block_copy_paste: boolean;
+};
+
 type FormState = {
   title: string;
   description: string;
@@ -30,6 +37,7 @@ type FormState = {
   pass_mark: number;
   status: "draft" | "active" | "archived";
   picked: Picked[];
+  proctoring: Proctoring;
 };
 
 const EMPTY: FormState = {
@@ -39,6 +47,12 @@ const EMPTY: FormState = {
   pass_mark: 60,
   status: "draft",
   picked: [],
+  proctoring: {
+    webcam: false,
+    tab_switch: false,
+    fullscreen: false,
+    block_copy_paste: false,
+  },
 };
 
 export default function TestsPage() {
@@ -97,6 +111,10 @@ export default function TestsPage() {
         prompt: tq.question.prompt,
         weight: tq.weight == null ? "" : String(tq.weight),
       })),
+      proctoring: {
+        ...EMPTY.proctoring,
+        ...((full.settings?.proctoring as Partial<Proctoring>) ?? {}),
+      },
     });
     setShowForm(true);
   }
@@ -137,6 +155,7 @@ export default function TestsPage() {
       duration_minutes: Number(form.duration_minutes),
       pass_mark: Number(form.pass_mark),
       questions: questionsPayload,
+      settings: { proctoring: form.proctoring },
     };
     try {
       if (editing) {
@@ -301,6 +320,39 @@ export default function TestsPage() {
               </div>
             )}
           </div>
+
+          <Field label="Proctoring">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+              {(
+                [
+                  ["webcam", "Webcam snapshots"],
+                  ["tab_switch", "Tab-switch alerts"],
+                  ["fullscreen", "Fullscreen"],
+                  ["block_copy_paste", "Block copy/paste"],
+                ] as [keyof Proctoring, string][]
+              ).map(([key, label]) => (
+                <label
+                  key={key}
+                  style={{ fontSize: 13, color: "var(--muted)" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.proctoring[key]}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        proctoring: {
+                          ...form.proctoring,
+                          [key]: e.target.checked,
+                        },
+                      })
+                    }
+                  />{" "}
+                  {label}
+                </label>
+              ))}
+            </div>
+          </Field>
 
           <Field label="Questions (in order)">
             <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>

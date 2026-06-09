@@ -35,6 +35,10 @@ export default function ResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
+  const [proctor, setProctor] = useState<{
+    events: { id: string; type: string; at: string; has_image: boolean }[];
+    summary: Record<string, number>;
+  } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -65,8 +69,28 @@ export default function ResultsPage() {
       });
       setOverrides(ov);
       setFeedbacks(fb);
+      try {
+        setProctor(
+          await api.get(`/results/${attemptId}/proctor`)
+        );
+      } catch {
+        setProctor(null);
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load detail");
+    }
+  }
+
+  async function viewSnapshot(eventId: string) {
+    if (!detail) return;
+    try {
+      const r = await api.get<{ image: string }>(
+        `/results/${detail.attempt_id}/proctor/${eventId}/image`
+      );
+      const w = window.open();
+      if (w) w.document.write(`<img src="${r.image}" />`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Snapshot failed");
     }
   }
 
@@ -242,6 +266,45 @@ export default function ResultsPage() {
               )}
             </div>
           ))}
+
+          {proctor && proctor.events.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <h3 style={{ fontSize: 16 }}>Proctoring</h3>
+              <p style={{ color: "var(--muted)", fontSize: 13 }}>
+                {Object.entries(proctor.summary)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(" · ")}
+              </p>
+              <div style={{ maxHeight: 180, overflow: "auto" }}>
+                {proctor.events.map((e) => (
+                  <div
+                    key={e.id}
+                    style={{
+                      fontSize: 12,
+                      color: "var(--muted)",
+                      padding: "2px 0",
+                    }}
+                  >
+                    {new Date(e.at).toLocaleTimeString()} — {e.type}
+                    {e.has_image && (
+                      <>
+                        {" "}
+                        <a
+                          href="#"
+                          onClick={(ev) => {
+                            ev.preventDefault();
+                            viewSnapshot(e.id);
+                          }}
+                        >
+                          view snapshot
+                        </a>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Modal>
       )}
     </main>

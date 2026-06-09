@@ -60,3 +60,27 @@ Work proceeds in phases (see `docs/plans/`). Each phase:
 - 2-space indent for JS/TS, JSON, YAML.
 - 4-space indent for Python (PEP 8); format with `ruff`.
 - LF endings, UTF-8, final newline.
+
+## Code quality (DRY + best practices)
+
+Strictly follow **DRY** — never duplicate data, logic, or structure; extract
+into a shared helper, base, or component.
+
+- **Single source of truth.** Catalogs/enums/config live in one place and are
+  imported (e.g. `app/core/rbac.py` seeds the DB *and* drives runtime; question
+  payload validation is defined once and reused on create/update).
+- **Backend layering.** Routes stay thin (validate → call a service → return a
+  schema); business logic lives in `app/services/`; reuse shared helpers
+  (`paginate()`, the org-scoped `_base_query` pattern, `recompute_aggregate`).
+  When a third entity repeats a pattern, factor a generic base before adding it.
+- **Frontend.** Reuse `components/ui.tsx` primitives and the shared API client
+  (`lib/client.ts`); don't re-style tables/modals per page. Extract a shared
+  list-page/table component when the pattern recurs.
+- **Org scoping + RBAC always.** Every data query is filtered by
+  `organization_id`; every admin route is gated by `require_permission(...)`.
+- **Never leak answers.** Candidate-facing responses must use the sanitized
+  public schemas (no correct keys / hidden test outputs).
+- **Migrations.** Schema changes ship as a numbered Alembic migration; model
+  column types must match the migration (esp. `DateTime(timezone=True)`).
+- **Quality gate per phase.** `ruff` clean, tests pass, frontend `next build`
+  succeeds, and the feature is verified against a live stack before commit.

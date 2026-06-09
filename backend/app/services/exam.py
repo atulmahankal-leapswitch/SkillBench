@@ -19,7 +19,7 @@ from app.schemas.exam import (
     RunResponse,
     build_public_question,
 )
-from app.services import judge0
+from app.services import judge0, proctoring
 from app.services.grading import grade_attempt
 from app.services.schedules import effective_status, get_invitation_by_token
 
@@ -83,6 +83,7 @@ async def _build_state(
         remaining_seconds=remaining,
         questions=questions,
         answers=answers,
+        proctoring=(schedule.test.settings or {}).get("proctoring", {}),
     )
 
 
@@ -196,6 +197,18 @@ async def run_code(db: AsyncSession, token: str, data: RunRequest) -> RunRespons
             RunCaseResult(passed=r.passed, status=r.status, stdout=r.stdout, stderr=r.stderr)
         )
     return RunResponse(results=results)
+
+
+async def report_proctor_event(
+    db: AsyncSession, token: str, type_: str, meta: dict | None
+) -> dict:
+    _, schedule = await _load(db, token)
+    attempt = await _get_attempt(db, schedule)
+    if attempt is None:
+        raise HTTPException(http.HTTP_409_CONFLICT, "Attempt not started")
+    proctoring._require_in_progress(attempt)
+    await proctoring.record_event(db, attempt, type_, meta)
+    return {"recorded": True}
 
 
 async def submit_attempt(db: AsyncSession, token: str) -> ExamState:

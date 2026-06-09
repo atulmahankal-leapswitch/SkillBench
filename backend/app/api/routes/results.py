@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.result import OverrideUpdate, ResultDetail, ResultSummary
+from app.services import proctoring
 from app.services import results as svc
 
 router = APIRouter(prefix="/results", tags=["results"])
@@ -64,3 +65,24 @@ async def override_question(
     return await svc.override_question(
         db, user, attempt_id, question_result_id, data
     )
+
+
+@router.get("/{attempt_id}/proctor")
+async def proctor_timeline(
+    attempt_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("result:read")),
+) -> dict:
+    events = await proctoring.list_events(db, user, attempt_id)
+    counts = await proctoring.summary(db, user, attempt_id)
+    return {"events": events, "summary": counts}
+
+
+@router.get("/{attempt_id}/proctor/{event_id}/image")
+async def proctor_snapshot(
+    attempt_id: uuid.UUID,
+    event_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("result:read")),
+) -> dict:
+    return {"image": await proctoring.get_snapshot(db, user, attempt_id, event_id)}

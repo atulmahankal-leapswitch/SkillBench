@@ -26,6 +26,12 @@ type ExamState = {
   remaining_seconds: number;
   questions: PublicQuestion[];
   answers: Record<string, unknown>;
+  proctoring: {
+    webcam?: boolean;
+    tab_switch?: boolean;
+    fullscreen?: boolean;
+    block_copy_paste?: boolean;
+  };
 };
 
 const card: React.CSSProperties = {
@@ -99,11 +105,110 @@ export default function ExamPage({
     return () => clearInterval(id);
   }, [state?.status, doSubmit]);
 
+  const report = useCallback(
+    (type: string, meta?: Record<string, unknown>) => {
+      // Fire-and-forget; proctoring must never block the exam.
+      call(`${token}/proctor`, "POST", { type, meta }).catch(() => {});
+    },
+    [token]
+  );
+
+  const proctoring = state?.proctoring ?? {};
+  const active = state?.status === "in_progress";
+
+  // Tab / focus monitoring.
+  useEffect(() => {
+    if (!active || !proctoring.tab_switch) return;
+    const onVis = () =>
+      document.hidden ? report("tab_blur") : report("tab_focus");
+    const onBlur = () => report("focus_loss");
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [active, proctoring.tab_switch, report]);
+
+  // Copy / paste blocking.
+  useEffect(() => {
+    if (!active || !proctoring.block_copy_paste) return;
+    const onCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      report("copy");
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      report("paste");
+    };
+    document.addEventListener("copy", onCopy);
+    document.addEventListener("paste", onPaste);
+    return () => {
+      document.removeEventListener("copy", onCopy);
+      document.removeEventListener("paste", onPaste);
+    };
+  }, [active, proctoring.block_copy_paste, report]);
+
+  // Fullscreen-exit detection.
+  useEffect(() => {
+    if (!active || !proctoring.fullscreen) return;
+    const onFs = () => {
+      if (!document.fullscreenElement) report("fullscreen_exit");
+    };
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, [active, proctoring.fullscreen, report]);
+
+  // Webcam snapshots every 30s.
+  useEffect(() => {
+    if (!active || !proctoring.webcam) return;
+    let stream: MediaStream | null = null;
+    let video: HTMLVideoElement | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (cancelled) return;
+        video = document.createElement("video");
+        video.srcObject = stream;
+        video.muted = true;
+        await video.play();
+        const snap = () => {
+          if (!video) return;
+          const canvas = document.createElement("canvas");
+          canvas.width = 320;
+          canvas.height = 240;
+          canvas
+            .getContext("2d")
+            ?.drawImage(video, 0, 0, canvas.width, canvas.height);
+          report("webcam_snapshot", {
+            image: canvas.toDataURL("image/jpeg", 0.5),
+          });
+        };
+        snap();
+        interval = setInterval(snap, 30000);
+      } catch {
+        report("webcam_denied");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [active, proctoring.webcam, report]);
+
   async function start() {
     setError(null);
     try {
       const s = await call(`${token}/start`, "POST");
       applyState(s);
+      if (s.proctoring?.fullscreen) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      }
     } catch (e) {
       setError((e as Error).message);
     }
