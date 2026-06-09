@@ -13,7 +13,7 @@ time; each is committed to GitHub when complete.
 | 03 | Scheduling & invitations           | ✅     | [plan](phase-03-scheduling-invites.md)          |
 | 04 | Candidate exam-taking              | ✅     | [plan](phase-04-exam-taking.md)                 |
 | 05 | Grading & results                  | ✅     | [plan](phase-05-grading-results.md)             |
-| 06 | Code execution (Judge0)            | ⬜     | [plan](phase-06-code-execution.md)              |
+| 06 | Code execution (Judge0)            | ✅     | [plan](phase-06-code-execution.md)              |
 | 07 | Proctoring                         | ⬜     | [plan](phase-07-proctoring.md)                  |
 | 08 | AI-assisted features               | ⬜     | [plan](phase-08-ai-features.md)                 |
 | 09 | Integrations (API + webhooks)      | ⬜     | [plan](phase-09-integrations.md)                |
@@ -49,4 +49,6 @@ time; each is committed to GitHub when complete.
   UI with autosave/resume/countdown. Verified live.
 - **Phase 05** complete: auto-grading on submit, Result/QuestionResult model,
   admin results list/detail/override + CSV export, results UI. Verified live.
-- **Next:** Phase 06 — Code execution (Judge0).
+- **Phase 06** complete: Judge0 client + coding auto-grading (with needs_review
+  fallback), candidate run-code endpoint + UI, opt-in compose.judge0.yml.
+- **Next:** Phase 07 — Proctoring.

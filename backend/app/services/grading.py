@@ -7,8 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.attempt import Attempt
 from app.models.enums import QuestionType
+from app.models.question import Question
 from app.models.result import QuestionResult, Result
 from app.models.test import Test
+from app.services import judge0
 
 
 def _effective_points(tq) -> float:
@@ -20,6 +22,45 @@ def _grade_objective(qtype: QuestionType, payload: dict, response: dict) -> bool
     correct = set(payload.get("correct_keys", []))
     selected = set(response.get("selected_keys", []))
     return bool(correct) and selected == correct
+
+
+async def grade_coding(
+    q: Question, response: dict, max_pts: float
+) -> QuestionResult:
+    """Auto-grade a coding answer via Judge0, or flag for review if disabled."""
+    code = response.get("code", "")
+    language = response.get("language", "python")
+    test_cases = (q.payload or {}).get("test_cases", [])
+
+    if not judge0.is_enabled() or not test_cases or not code:
+        return QuestionResult(
+            question_id=q.id, points_awarded=0, max_points=max_pts,
+            is_correct=None, needs_review=True,
+        )
+    try:
+        passed = 0
+        for tc in test_cases:
+            res = await judge0.run(
+                language=language,
+                source_code=code,
+                stdin=tc.get("input", ""),
+                expected_output=tc.get("expected", ""),
+            )
+            if res.passed:
+                passed += 1
+        total = len(test_cases)
+        awarded = round(max_pts * passed / total, 2) if total else 0
+        return QuestionResult(
+            question_id=q.id, points_awarded=awarded, max_points=max_pts,
+            is_correct=(passed == total), needs_review=False,
+            feedback=f"{passed}/{total} test cases passed",
+        )
+    except Exception:  # noqa: BLE001 - any execution error -> manual review
+        return QuestionResult(
+            question_id=q.id, points_awarded=0, max_points=max_pts,
+            is_correct=None, needs_review=True,
+            feedback="Auto-execution failed; needs manual review",
+        )
 
 
 def recompute_aggregate(result: Result, pass_mark: float) -> None:
@@ -67,8 +108,10 @@ async def grade_attempt(db: AsyncSession, attempt: Attempt) -> Result:
                     needs_review=False,
                 )
             )
+        elif qtype == QuestionType.CODING:
+            result.questions.append(await grade_coding(q, resp, max_pts))
         else:
-            # text / coding: await human (or AI/Judge0 in later phases)
+            # text: await human (or AI in Phase 08)
             result.questions.append(
                 QuestionResult(
                     question_id=q.id,

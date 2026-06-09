@@ -205,6 +205,14 @@ export default function ExamPage({
             q={q}
             value={answers[q.id]}
             onChange={(resp) => saveAnswer(q.id, resp)}
+            onRun={async (code, language) => {
+              const res = await call(`${token}/run`, "POST", {
+                question_id: q.id,
+                language,
+                code,
+              });
+              return (res as { results: RunCaseResult[] }).results;
+            }}
           />
         </div>
       ))}
@@ -224,15 +232,31 @@ export default function ExamPage({
   );
 }
 
+type RunCaseResult = {
+  passed: boolean;
+  status: string;
+  stdout: string;
+  stderr: string;
+};
+
 function QuestionInput({
   q,
   value,
   onChange,
+  onRun,
 }: {
   q: PublicQuestion;
   value: unknown;
   onChange: (resp: unknown) => void;
+  onRun?: (code: string, language: string) => Promise<RunCaseResult[]>;
 }) {
+  const [runResults, setRunResults] = useState<RunCaseResult[] | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  const codeRef = useRef<string>(
+    (value as { code?: string })?.code ?? q.starter_code?.python ?? ""
+  );
+
   if (q.type === "mcq" || q.type === "multi_select") {
     const selected = ((value as { selected_keys?: string[] })?.selected_keys ??
       []) as string[];
@@ -275,8 +299,20 @@ function QuestionInput({
     );
   }
   // coding
-  const code =
-    (value as { code?: string })?.code ?? q.starter_code?.python ?? "";
+  async function run() {
+    if (!onRun) return;
+    setRunError(null);
+    setRunning(true);
+    try {
+      onChange({ language: "python", code: codeRef.current });
+      setRunResults(await onRun(codeRef.current, "python"));
+    } catch (e) {
+      setRunError((e as Error).message);
+    } finally {
+      setRunning(false);
+    }
+  }
+
   return (
     <div>
       {q.sample_test_cases && q.sample_test_cases.length > 0 && (
@@ -286,10 +322,34 @@ function QuestionInput({
         </div>
       )}
       <textarea
-        defaultValue={code}
+        defaultValue={codeRef.current}
+        onChange={(e) => (codeRef.current = e.target.value)}
         onBlur={(e) => onChange({ language: "python", code: e.target.value })}
         style={{ ...fieldStyle, minHeight: 180, fontFamily: "monospace" }}
       />
+      {onRun && (
+        <div style={{ marginTop: 8 }}>
+          <button onClick={run} disabled={running} style={primaryBtn}>
+            {running ? "Running…" : "Run sample tests"}
+          </button>
+          {runError && (
+            <p style={{ color: "#ffb4b4", fontSize: 13 }}>{runError}</p>
+          )}
+          {runResults?.map((r, i) => (
+            <div
+              key={i}
+              style={{ fontSize: 13, marginTop: 6, color: "var(--muted)" }}
+            >
+              Test {i + 1}: {r.passed ? "✅" : "❌"} {r.status}
+              {r.stdout && (
+                <pre style={{ whiteSpace: "pre-wrap", margin: "4px 0" }}>
+                  {r.stdout}
+                </pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

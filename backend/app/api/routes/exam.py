@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.schemas.exam import AnswerSubmit, ExamState
+from app.schemas.exam import AnswerSubmit, ExamState, RunRequest, RunResponse
 from app.services import exam as svc
 
 router = APIRouter(prefix="/exam", tags=["exam"])
@@ -25,6 +25,13 @@ async def save_answer(
     token: str, data: AnswerSubmit, db: AsyncSession = Depends(get_db)
 ) -> dict:
     return await svc.save_answer(db, token, data)
+
+
+@router.post("/{token}/run", response_model=RunResponse)
+async def run_code(
+    token: str, data: RunRequest, db: AsyncSession = Depends(get_db)
+) -> RunResponse:
+    return await svc.run_code(db, token, data)
 
 
 @router.post("/{token}/submit", response_model=ExamState)

@@ -8,10 +8,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.attempt import Answer, Attempt
-from app.models.enums import AttemptStatus, ScheduleStatus
+from app.models.enums import AttemptStatus, QuestionType, ScheduleStatus
 from app.models.schedule import Invitation, Schedule
 from app.models.test import Test
-from app.schemas.exam import AnswerSubmit, ExamState, build_public_question
+from app.schemas.exam import (
+    AnswerSubmit,
+    ExamState,
+    RunCaseResult,
+    RunRequest,
+    RunResponse,
+    build_public_question,
+)
+from app.services import judge0
 from app.services.grading import grade_attempt
 from app.services.schedules import effective_status, get_invitation_by_token
 
@@ -151,6 +159,43 @@ async def save_answer(db: AsyncSession, token: str, data: AnswerSubmit) -> dict:
         )
     await db.commit()
     return {"saved": True}
+
+
+async def run_code(db: AsyncSession, token: str, data: RunRequest) -> RunResponse:
+    """Run candidate code against a coding question's sample (visible) cases."""
+    if not judge0.is_enabled():
+        raise HTTPException(
+            http.HTTP_503_SERVICE_UNAVAILABLE, "Code execution is not enabled"
+        )
+    _, schedule = await _load(db, token)
+    attempt = await _get_attempt(db, schedule)
+    if attempt is None:
+        raise HTTPException(http.HTTP_409_CONFLICT, "Attempt not started")
+    await _enforce_expiry(db, attempt)
+    if attempt.status != AttemptStatus.IN_PROGRESS:
+        raise HTTPException(http.HTTP_409_CONFLICT, "Attempt is not in progress")
+
+    test = await _load_test(db, schedule)
+    tq = next((t for t in test.questions if t.question_id == data.question_id), None)
+    if tq is None or QuestionType(tq.question.type) != QuestionType.CODING:
+        raise HTTPException(http.HTTP_400_BAD_REQUEST, "Not a coding question in this test")
+
+    visible = [
+        tc for tc in (tq.question.payload or {}).get("test_cases", [])
+        if not tc.get("hidden", True)
+    ]
+    results = []
+    for tc in visible:
+        r = await judge0.run(
+            language=data.language,
+            source_code=data.code,
+            stdin=tc.get("input", ""),
+            expected_output=tc.get("expected", ""),
+        )
+        results.append(
+            RunCaseResult(passed=r.passed, status=r.status, stdout=r.stdout, stderr=r.stderr)
+        )
+    return RunResponse(results=results)
 
 
 async def submit_attempt(db: AsyncSession, token: str) -> ExamState:

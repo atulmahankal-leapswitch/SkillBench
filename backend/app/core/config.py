@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
 
     # Judge0 (code-execution phase)
+    judge0_enabled: bool = False
     judge0_url: str = "http://judge0:2358"
     judge0_auth_token: str = ""
 

@@ -1,0 +1,51 @@
+# Optional Judge0 stack for sandboxed code execution.
+#
+#   docker compose -f compose.yml -f compose.dev.yml -f compose.judge0.yml up
+#
+# Then set JUDGE0_ENABLED=true in .env so the backend uses it.
+#
+# NOTE: Judge0 isolates submissions using isolate/cgroups and typically needs a
+# privileged worker plus cgroup v1. On hosts with cgroup v2 only, follow the
+# Judge0 docs for the required kernel/boot settings. See docs/features and
+# https://github.com/judge0/judge0.
+name: skillbench
+
+services:
+  judge0:
+    image: judge0/judge0:1.13.1
+    restart: unless-stopped
+    command: ["./scripts/server"]
+    env_file: [docker/judge0.conf]
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    ports:
+      - "${JUDGE0_HOST_PORT:-2358}:2358"
+
+  judge0-workers:
+    image: judge0/judge0:1.13.1
+    restart: unless-stopped
+    command: ["./scripts/workers"]
+    privileged: true
+    env_file: [docker/judge0.conf]
+    depends_on:
+      - judge0-db
+      - judge0-redis
+
+  judge0-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0
+      POSTGRES_DB: judge0
+    volumes:
+      - judge0-db-data:/var/lib/postgresql/data
+
+  judge0-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "no"]
+
+volumes:
+  judge0-db-data:

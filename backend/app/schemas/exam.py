@@ -68,3 +68,20 @@ class ExamState(BaseModel):
 class AnswerSubmit(BaseModel):
     question_id: uuid.UUID
     response: dict[str, Any]
+
+
+class RunRequest(BaseModel):
+    question_id: uuid.UUID
+    language: str
+    code: str
+
+
+class RunCaseResult(BaseModel):
+    passed: bool
+    status: str
+    stdout: str
+    stderr: str
+
+
+class RunResponse(BaseModel):
+    results: list[RunCaseResult]
