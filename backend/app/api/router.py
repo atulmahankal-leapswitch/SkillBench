@@ -2,7 +2,15 @@
 
 from fastapi import APIRouter
 
-from app.api.routes import auth, candidates, health, questions, schedules, tests
+from app.api.routes import (
+    auth,
+    candidates,
+    exam,
+    health,
+    questions,
+    schedules,
+    tests,
+)
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(health.router)
@@ -12,3 +20,4 @@ api_router.include_router(questions.router)
 api_router.include_router(tests.router)
 api_router.include_router(schedules.router)
 api_router.include_router(schedules.public_router)
+api_router.include_router(exam.router)

@@ -1,5 +1,6 @@
 """ORM models. Import all here so Base.metadata sees every table."""
 
+from app.models.attempt import Answer, Attempt
 from app.models.candidate import Candidate, user_candidate_assignments
 from app.models.organization import Organization
 from app.models.question import Question
@@ -27,4 +28,6 @@ __all__ = [
     "TestQuestion",
     "Schedule",
     "Invitation",
+    "Attempt",
+    "Answer",
 ]

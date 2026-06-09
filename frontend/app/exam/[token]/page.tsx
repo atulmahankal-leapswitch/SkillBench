@@ -1,0 +1,331 @@
+"use client";
+
+import { use, useCallback, useEffect, useRef, useState } from "react";
+import { browserApiBase } from "@/lib/api";
+
+type PublicQuestion = {
+  id: string;
+  type: "mcq" | "multi_select" | "text" | "coding";
+  prompt: string;
+  points: number;
+  options?: { key: string; text: string }[];
+  multiple?: boolean;
+  max_chars?: number | null;
+  starter_code?: Record<string, string> | null;
+  sample_test_cases?: { input: string; expected: string }[] | null;
+};
+
+type ExamState = {
+  status: "not_started" | "in_progress" | "submitted" | "expired";
+  test_title: string;
+  candidate_name: string;
+  duration_minutes: number;
+  started_at: string | null;
+  expires_at: string | null;
+  server_now: string;
+  remaining_seconds: number;
+  questions: PublicQuestion[];
+  answers: Record<string, unknown>;
+};
+
+const card: React.CSSProperties = {
+  background: "var(--card)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  padding: 20,
+  marginBottom: 16,
+};
+
+async function call(path: string, method: string, body?: unknown) {
+  const res = await fetch(`${browserApiBase}/api/exam/${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.detail || res.statusText);
+  return data;
+}
+
+export default function ExamPage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
+  const { token } = use(params);
+  const [state, setState] = useState<ExamState | null>(null);
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const [remaining, setRemaining] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const submittedRef = useRef(false);
+
+  const applyState = useCallback((s: ExamState) => {
+    setState(s);
+    setAnswers(s.answers || {});
+    setRemaining(s.remaining_seconds);
+  }, []);
+
+  useEffect(() => {
+    call(`${token}`, "GET")
+      .then(applyState)
+      .catch((e) => setError(e.message));
+  }, [token, applyState]);
+
+  const doSubmit = useCallback(async () => {
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+    try {
+      const s = await call(`${token}/submit`, "POST");
+      applyState(s);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [token, applyState]);
+
+  // Countdown while in progress; auto-submit at zero.
+  useEffect(() => {
+    if (state?.status !== "in_progress") return;
+    const id = setInterval(() => {
+      setRemaining((r) => {
+        if (r <= 1) {
+          clearInterval(id);
+          doSubmit();
+          return 0;
+        }
+        return r - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [state?.status, doSubmit]);
+
+  async function start() {
+    setError(null);
+    try {
+      const s = await call(`${token}/start`, "POST");
+      applyState(s);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function saveAnswer(questionId: string, response: unknown) {
+    setAnswers((a) => ({ ...a, [questionId]: response }));
+    setSaving(true);
+    try {
+      await call(`${token}/answer`, "PUT", {
+        question_id: questionId,
+        response,
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (error && !state) {
+    return <Centered>{error}</Centered>;
+  }
+  if (!state) return <Centered>Loading…</Centered>;
+
+  if (state.status === "submitted" || state.status === "expired") {
+    return (
+      <Centered>
+        <h1>
+          {state.status === "submitted"
+            ? "Your responses have been submitted."
+            : "Time is up — your attempt was submitted automatically."}
+        </h1>
+        <p style={{ color: "var(--muted)" }}>
+          Thank you, {state.candidate_name}. You may close this window.
+        </p>
+      </Centered>
+    );
+  }
+
+  if (state.status === "not_started") {
+    return (
+      <Centered>
+        <div style={{ ...card, maxWidth: 520 }}>
+          <h1 style={{ marginTop: 0 }}>{state.test_title}</h1>
+          <p>Hello {state.candidate_name},</p>
+          <ul style={{ color: "var(--muted)", lineHeight: 1.8 }}>
+            <li>Duration: {state.duration_minutes} minutes</li>
+            <li>The timer starts when you click Begin.</li>
+            <li>Your answers save automatically.</li>
+          </ul>
+          {error && <p style={{ color: "#ffb4b4" }}>{error}</p>}
+          <button onClick={start} style={primaryBtn}>
+            Begin assessment
+          </button>
+        </div>
+      </Centered>
+    );
+  }
+
+  // in_progress
+  const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+  const ss = String(remaining % 60).padStart(2, "0");
+
+  return (
+    <main style={{ maxWidth: 760, margin: "0 auto", padding: "24px 20px 80px" }}>
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          background: "var(--bg)",
+          padding: "12px 0",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: "1px solid var(--border)",
+          zIndex: 10,
+        }}
+      >
+        <strong>{state.test_title}</strong>
+        <span
+          style={{
+            fontVariantNumeric: "tabular-nums",
+            color: remaining < 60 ? "#ff8a8a" : "var(--fg)",
+            fontSize: 18,
+          }}
+        >
+          ⏱ {mm}:{ss}
+        </span>
+      </div>
+
+      {state.questions.map((q, i) => (
+        <div key={q.id} style={card}>
+          <div style={{ color: "var(--muted)", fontSize: 13 }}>
+            Question {i + 1} · {q.points} pt{q.points === 1 ? "" : "s"} · {q.type}
+          </div>
+          <p style={{ fontSize: 16, whiteSpace: "pre-wrap" }}>{q.prompt}</p>
+          <QuestionInput
+            q={q}
+            value={answers[q.id]}
+            onChange={(resp) => saveAnswer(q.id, resp)}
+          />
+        </div>
+      ))}
+
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span style={{ color: "var(--muted)", fontSize: 13 }}>
+          {saving ? "Saving…" : "All changes saved"}
+        </span>
+        <button
+          onClick={() => confirm("Submit your assessment?") && doSubmit()}
+          style={primaryBtn}
+        >
+          Submit assessment
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function QuestionInput({
+  q,
+  value,
+  onChange,
+}: {
+  q: PublicQuestion;
+  value: unknown;
+  onChange: (resp: unknown) => void;
+}) {
+  if (q.type === "mcq" || q.type === "multi_select") {
+    const selected = ((value as { selected_keys?: string[] })?.selected_keys ??
+      []) as string[];
+    function toggle(key: string) {
+      if (q.multiple) {
+        const set = new Set(selected);
+        set.has(key) ? set.delete(key) : set.add(key);
+        onChange({ selected_keys: [...set] });
+      } else {
+        onChange({ selected_keys: [key] });
+      }
+    }
+    return (
+      <div>
+        {q.options?.map((o) => (
+          <label
+            key={o.key}
+            style={{ display: "block", padding: "6px 0", cursor: "pointer" }}
+          >
+            <input
+              type={q.multiple ? "checkbox" : "radio"}
+              checked={selected.includes(o.key)}
+              onChange={() => toggle(o.key)}
+            />{" "}
+            {o.text}
+          </label>
+        ))}
+      </div>
+    );
+  }
+  if (q.type === "text") {
+    const text = (value as { text?: string })?.text ?? "";
+    return (
+      <textarea
+        defaultValue={text}
+        onBlur={(e) => onChange({ text: e.target.value })}
+        maxLength={q.max_chars ?? undefined}
+        style={{ ...fieldStyle, minHeight: 120 }}
+      />
+    );
+  }
+  // coding
+  const code =
+    (value as { code?: string })?.code ?? q.starter_code?.python ?? "";
+  return (
+    <div>
+      {q.sample_test_cases && q.sample_test_cases.length > 0 && (
+        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
+          Sample: in <code>{q.sample_test_cases[0].input}</code> → out{" "}
+          <code>{q.sample_test_cases[0].expected}</code>
+        </div>
+      )}
+      <textarea
+        defaultValue={code}
+        onBlur={(e) => onChange({ language: "python", code: e.target.value })}
+        style={{ ...fieldStyle, minHeight: 180, fontFamily: "monospace" }}
+      />
+    </div>
+  );
+}
+
+function Centered({ children }: { children: React.ReactNode }) {
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+        textAlign: "center",
+      }}
+    >
+      <div>{children}</div>
+    </main>
+  );
+}
+
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px",
+  background: "var(--bg)",
+  color: "var(--fg)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  fontSize: 14,
+};
+
+const primaryBtn: React.CSSProperties = {
+  background: "var(--accent)",
+  color: "#fff",
+  border: "none",
+  padding: "10px 18px",
+  borderRadius: 8,
+  fontSize: 15,
+  cursor: "pointer",
+};

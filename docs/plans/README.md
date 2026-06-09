@@ -11,7 +11,7 @@ time; each is committed to GitHub when complete.
 | 01 | Auth & RBAC (Google OAuth, roles)  | ✅     | [plan](phase-01-auth-rbac.md)                   |
 | 02 | Core CRUD (Candidates/Questions/Tests) | ✅ | [plan](phase-02-core-crud.md)                   |
 | 03 | Scheduling & invitations           | ✅     | [plan](phase-03-scheduling-invites.md)          |
-| 04 | Candidate exam-taking              | ⬜     | [plan](phase-04-exam-taking.md)                 |
+| 04 | Candidate exam-taking              | ✅     | [plan](phase-04-exam-taking.md)                 |
 | 05 | Grading & results                  | ⬜     | [plan](phase-05-grading-results.md)             |
 | 06 | Code execution (Judge0)            | ⬜     | [plan](phase-06-code-execution.md)              |
 | 07 | Proctoring                         | ⬜     | [plan](phase-07-proctoring.md)                  |
@@ -44,4 +44,7 @@ time; each is committed to GitHub when complete.
   end-to-end (live API flow + frontend build + stack smoke).
 - **Phase 03** complete: schedules + tokened invitations, email send/resend/
   revoke, public invite-validation endpoint, admin schedules UI. Verified live.
-- **Next:** Phase 04 — Candidate exam-taking.
+- **Phase 04** complete: attempt lifecycle (server-enforced timing/auto-submit),
+  token-auth exam API, candidate-safe questions (no answer leakage), exam runner
+  UI with autosave/resume/countdown. Verified live.
+- **Next:** Phase 05 — Grading & results.
