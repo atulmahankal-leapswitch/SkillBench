@@ -10,6 +10,14 @@ ENV PYTHONUNBUFFERED=1 \
 # uv: fast Python package/venv manager.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
+# Node + the Claude Code CLI: the claude-agent-sdk provider drives this CLI
+# (authenticates via the mounted ~/.claude OAuth or ANTHROPIC_API_KEY).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm ca-certificates \
+    && npm install -g @anthropic-ai/claude-code \
+    && npm cache clean --force \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install dependencies first for better layer caching.
