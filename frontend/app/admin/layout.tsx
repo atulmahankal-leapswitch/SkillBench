@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { fetchCurrentUser } from "@/lib/api";
 import TopBar from "@/components/TopBar";
+import TopProgress from "@/components/TopProgress";
 
 const NAV = [
   { href: "/admin", label: "Dashboard" },
@@ -34,6 +36,9 @@ export default async function AdminLayout({
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
+      <Suspense fallback={null}>
+        <TopProgress />
+      </Suspense>
       <aside
         style={{
           width: 220,
