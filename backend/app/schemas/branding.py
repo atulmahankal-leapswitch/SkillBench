@@ -13,5 +13,6 @@ class BrandingOut(BaseModel):
 
 class BrandingUpdate(BaseModel):
     display_name: str = Field(default="", max_length=255)
-    logo_url: str = Field(default="", max_length=1024)
+    # A URL or an uploaded image as a data URL (capped ~500 KB).
+    logo_url: str = Field(default="", max_length=700_000)
     brand_color: str = Field(default="", max_length=20)

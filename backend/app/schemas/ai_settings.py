@@ -7,7 +7,12 @@ class AISettingsOut(BaseModel):
     provider: str
     model: str
     api_key_set: bool
+    api_key_masked: str = ""
     available_providers: list[str]
+    # provider -> curated model list (UI dropdowns)
+    models: dict[str, list[str]]
+    # providers that require an API key field in the UI
+    providers_needing_key: list[str]
 
 
 class AISettingsUpdate(BaseModel):

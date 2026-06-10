@@ -24,12 +24,19 @@ async def _org(db: AsyncSession, user: User) -> Organization:
     ).scalar_one()
 
 
+def _masked(key: str) -> str:
+    return f"••••••••{key[-4:]}" if key else ""
+
+
 def _out(org: Organization) -> AISettingsOut:
     return AISettingsOut(
         provider=org.ai_provider,
         model=org.ai_model,
         api_key_set=bool(org.ai_api_key),
+        api_key_masked=_masked(org.ai_api_key),
         available_providers=ai.AVAILABLE_PROVIDERS,
+        models=ai.PROVIDER_MODELS,
+        providers_needing_key=ai.PROVIDERS_NEEDING_KEY,
     )
 
 

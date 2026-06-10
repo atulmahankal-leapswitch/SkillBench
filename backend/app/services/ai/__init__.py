@@ -8,6 +8,26 @@ from app.services.ai.base import AIDisabled, AIProvider
 # Providers selectable in the admin UI.
 AVAILABLE_PROVIDERS = ["anthropic", "claude_code_sdk", "openai", "stub"]
 
+# Curated model lists per provider (UI dropdowns; avoids typos).
+PROVIDER_MODELS: dict[str, list[str]] = {
+    "anthropic": [
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+    ],
+    "claude_code_sdk": [
+        "claude-opus-4-8",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+    ],
+    "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "o4-mini"],
+    "stub": [],
+}
+
+# Providers that require an API key (others use host auth / none).
+PROVIDERS_NEEDING_KEY = ["anthropic", "openai"]
+
 
 @dataclass
 class AIConfig:
@@ -59,6 +79,8 @@ __all__ = [
     "AIDisabled",
     "AIProvider",
     "AVAILABLE_PROVIDERS",
+    "PROVIDER_MODELS",
+    "PROVIDERS_NEEDING_KEY",
     "get_provider",
     "is_enabled",
     "resolve",

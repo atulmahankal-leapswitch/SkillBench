@@ -3,7 +3,7 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String
+from sqlalchemy import String, Text
 from sqlalchemy.dialects.postgresql import CITEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,7 +25,8 @@ class Organization(Base, TimestampMixin):
     )
     # White-label branding for the candidate experience.
     display_name: Mapped[str] = mapped_column(String(255), default="", nullable=False)
-    logo_url: Mapped[str] = mapped_column(String(1024), default="", nullable=False)
+    # Holds either a URL or an uploaded image as a data URL (hence Text).
+    logo_url: Mapped[str] = mapped_column(Text, default="", nullable=False)
     brand_color: Mapped[str] = mapped_column(String(20), default="", nullable=False)
 
     # AI provider configuration (overrides env defaults when set).

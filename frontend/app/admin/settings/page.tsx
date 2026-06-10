@@ -12,6 +12,7 @@ import {
   td,
   th,
 } from "@/components/ui";
+import LogoUpload from "@/components/LogoUpload";
 
 type ApiKey = {
   id: string;
@@ -26,7 +27,10 @@ type AISettings = {
   provider: string;
   model: string;
   api_key_set: boolean;
+  api_key_masked: string;
   available_providers: string[];
+  models: Record<string, string[]>;
+  providers_needing_key: string[];
 };
 
 const SCOPES = ["candidate:read", "result:read"];
@@ -55,7 +59,10 @@ export default function SettingsPage() {
     provider: "",
     model: "",
     api_key_set: false,
+    api_key_masked: "",
     available_providers: [],
+    models: {},
+    providers_needing_key: [],
   });
   const [aiKey, setAiKey] = useState("");
   const [aiSaved, setAiSaved] = useState(false);
@@ -96,6 +103,12 @@ export default function SettingsPage() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Save failed");
     }
+  }
+
+  function changeProvider(p: string) {
+    const models = ai.models[p] || [];
+    const model = models.includes(ai.model) ? ai.model : (models[0] ?? "");
+    setAi({ ...ai, provider: p, model });
   }
 
   async function saveAi(clearKey = false) {
@@ -186,11 +199,10 @@ export default function SettingsPage() {
               onChange={(e) => setBrand({ ...brand, display_name: e.target.value })}
             />
           </Field>
-          <Field label="Logo URL">
-            <input
-              style={inputStyle}
+          <Field label="Logo">
+            <LogoUpload
               value={brand.logo_url}
-              onChange={(e) => setBrand({ ...brand, logo_url: e.target.value })}
+              onChange={(v) => setBrand({ ...brand, logo_url: v })}
             />
           </Field>
           <Field label="Brand colour (hex)">
@@ -209,14 +221,13 @@ export default function SettingsPage() {
       {tab === "AI Provider" && (
         <section style={{ maxWidth: 560 }}>
           <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 0 }}>
-            Powers question generation and free-text scoring. Leave the key blank
-            to keep the current one; Claude Code SDK and Stub need no key.
+            Powers question generation and free-text answer scoring.
           </p>
           <Field label="Provider">
             <select
               style={inputStyle}
               value={ai.provider}
-              onChange={(e) => setAi({ ...ai, provider: e.target.value })}
+              onChange={(e) => changeProvider(e.target.value)}
             >
               <option value="">Disabled</option>
               {ai.available_providers.map((p) => (
@@ -226,32 +237,67 @@ export default function SettingsPage() {
               ))}
             </select>
           </Field>
-          <Field label="Model">
-            <input
-              style={inputStyle}
-              placeholder="claude-opus-4-8"
-              value={ai.model}
-              onChange={(e) => setAi({ ...ai, model: e.target.value })}
-            />
-          </Field>
-          <Field label={`API key ${ai.api_key_set ? "(set — leave blank to keep)" : "(not set)"}`}>
-            <input
-              type="password"
-              style={inputStyle}
-              placeholder={ai.api_key_set ? "••••••••" : "sk-..."}
-              value={aiKey}
-              onChange={(e) => setAiKey(e.target.value)}
-            />
-          </Field>
-          <Button onClick={() => saveAi(false)}>Save AI settings</Button>
-          {ai.api_key_set && (
-            <span style={{ marginLeft: 8 }}>
-              <Button variant="danger" onClick={() => saveAi(true)}>
-                Clear key
-              </Button>
-            </span>
+
+          {(ai.models[ai.provider]?.length ?? 0) > 0 && (
+            <Field label="Model">
+              <select
+                style={inputStyle}
+                value={ai.model}
+                onChange={(e) => setAi({ ...ai, model: e.target.value })}
+              >
+                {ai.models[ai.provider].map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </Field>
           )}
-          {aiSaved && <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>}
+
+          {ai.providers_needing_key.includes(ai.provider) && (
+            <Field label="API key">
+              <input
+                type="password"
+                style={inputStyle}
+                placeholder={
+                  ai.api_key_set ? ai.api_key_masked : "sk-… (required)"
+                }
+                value={aiKey}
+                onChange={(e) => setAiKey(e.target.value)}
+              />
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                {ai.api_key_set
+                  ? "A key is set. Leave blank to keep it."
+                  : "Stored server-side and never shown again."}
+              </div>
+            </Field>
+          )}
+
+          {ai.provider === "claude_code_sdk" && (
+            <p style={{ fontSize: 13, color: "var(--muted)" }}>
+              Uses the Claude Code SDK (claude-agent-sdk) with the host&apos;s
+              Claude credentials — no API key needed here.
+            </p>
+          )}
+          {ai.provider === "stub" && (
+            <p style={{ fontSize: 13, color: "var(--muted)" }}>
+              Returns deterministic sample output for local testing — no real AI.
+            </p>
+          )}
+
+          <div style={{ marginTop: 8 }}>
+            <Button onClick={() => saveAi(false)}>Save AI settings</Button>
+            {ai.api_key_set && ai.providers_needing_key.includes(ai.provider) && (
+              <span style={{ marginLeft: 8 }}>
+                <Button variant="danger" onClick={() => saveAi(true)}>
+                  Clear key
+                </Button>
+              </span>
+            )}
+            {aiSaved && (
+              <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>
+            )}
+          </div>
         </section>
       )}
 
