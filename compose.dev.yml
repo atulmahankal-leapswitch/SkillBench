@@ -18,8 +18,40 @@ services:
       # agent SDK authenticates via OAuth without an API key. The container runs
       # as root and can read the host's ~/.claude/.credentials.json.
       - "${CLAUDE_HOME:-${HOME}/.claude}:/root/.claude"
-      # Local screen-recording storage (dev). Prod uses the S3 provider instead.
-      - recordings:/app/data/recordings
+
+  # MinIO: S3-compatible object storage for dev (screen recordings). Configure
+  # it in Settings → Recording (endpoint http://minio:9000). Prod uses real
+  # object storage (R2/S3) instead.
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: create the recordings bucket then exit.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        until mc alias set m http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin}; do sleep 1; done;
+        mc mb -p m/${MINIO_BUCKET:-skillbench-recordings} || true;
+        exit 0;
 
   frontend:
     build:
@@ -38,5 +70,5 @@ services:
 volumes:
   # Container-local Claude Code credentials (not the host's ~/.claude).
   claude-home:
-  # Local screen-recording storage (dev).
-  recordings:
+  # MinIO object-storage data (dev screen recordings).
+  minio-data:

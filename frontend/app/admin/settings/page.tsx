@@ -453,8 +453,9 @@ function SettingsInner() {
         <section style={{ maxWidth: 560 }}>
           <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 0 }}>
             Where candidate screen recordings are stored (enable “Record screen”
-            on a test to capture). <strong>Local</strong> writes to the backend’s
-            data volume — for development. <strong>S3</strong> for production.
+            on a test to capture). Uses S3-compatible object storage — in dev
+            point it at the bundled MinIO (endpoint <code>http://minio:9000</code>);
+            in production use AWS S3 / Cloudflare R2.
           </p>
           <Field label="Storage provider">
             <select
@@ -463,8 +464,7 @@ function SettingsInner() {
               onChange={(e) => setRec({ ...rec, provider: e.target.value })}
             >
               <option value="">Disabled</option>
-              <option value="local">Local (dev — backend volume)</option>
-              <option value="s3">S3 / object storage</option>
+              <option value="s3">S3 / object storage (MinIO in dev)</option>
             </select>
           </Field>
           {rec.provider === "s3" && (

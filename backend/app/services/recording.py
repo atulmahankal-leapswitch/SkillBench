@@ -47,13 +47,17 @@ def _local_stream(attempt_id: uuid.UUID) -> Iterator[bytes]:
 # ── S3 backend (prod) ────────────────────────────────────────────────────────
 def _s3_client(org: Organization):
     import boto3  # lazy: only needed when provider == s3
+    from botocore.client import Config
 
     return boto3.client(
         "s3",
-        region_name=org.recording_s3_region or None,
+        region_name=org.recording_s3_region or "us-east-1",
         endpoint_url=org.recording_s3_endpoint or None,
         aws_access_key_id=org.recording_s3_access_key or None,
         aws_secret_access_key=org.recording_s3_secret or None,
+        # Path-style works with MinIO / R2 / custom endpoints (virtual-host
+        # style needs per-bucket DNS, which those don't provide).
+        config=Config(s3={"addressing_style": "path"}),
     )
 
 
