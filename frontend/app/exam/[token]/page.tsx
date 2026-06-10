@@ -39,6 +39,8 @@ type ExamState = {
 
 type RunCaseResult = { passed: boolean; status: string; stdout: string; stderr: string };
 
+type PermStatus = "idle" | "granted" | "denied";
+
 const APP = process.env.NEXT_PUBLIC_APP_NAME ?? "SkillBench";
 
 async function call(path: string, method: string, body?: unknown) {
@@ -66,6 +68,21 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
   const offlineAtRef = useRef<number | null>(null);
   const submittedRef = useRef(false);
 
+  // Shared media streams acquired at the permission gate, reused by the
+  // recording + snapshot effects so the candidate is only prompted once.
+  const camStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  // `entered` = the candidate passed the permission gate in this session and
+  // should see the live exam. On reopen (status already in_progress) this
+  // starts false, so we show the startup screen with "Continue test".
+  const [entered, setEntered] = useState(false);
+  const [gateBusy, setGateBusy] = useState(false);
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [perm, setPerm] = useState<{ camera: PermStatus; screen: PermStatus }>({
+    camera: "idle",
+    screen: "idle",
+  });
+
   const accent = state?.branding?.brand_color || "#4f8cff";
 
   const applyState = useCallback((s: ExamState) => {
@@ -87,6 +104,16 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     [token]
   );
 
+  const stopStreams = useCallback(() => {
+    camStreamRef.current?.getTracks().forEach((t) => t.stop());
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+    camStreamRef.current = null;
+    screenStreamRef.current = null;
+  }, []);
+
+  // Release camera/screen when the candidate leaves the page.
+  useEffect(() => stopStreams, [stopStreams]);
+
   const doSubmit = useCallback(async () => {
     if (submittedRef.current) return;
     submittedRef.current = true;
@@ -95,11 +122,15 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       applyState(await call(`${token}/submit`, "POST"));
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      stopStreams();
     }
-  }, [token, applyState]);
+  }, [token, applyState, stopStreams]);
 
   const proctoring = state?.proctoring ?? {};
   const active = state?.status === "in_progress";
+  // The live exam UI/monitoring only runs once the gate has been passed.
+  const live = active && entered;
 
   // Countdown + auto-submit. Frozen while disconnected (see online/offline).
   useEffect(() => {
@@ -120,7 +151,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
   // Connection drop → freeze the timer + block the exam; on reconnect, credit
   // the offline time back to the server deadline and resync.
   useEffect(() => {
-    if (!active) return;
+    if (!live) return;
     const onOffline = () => {
       offlineAtRef.current = Date.now();
       setDisconnected(true);
@@ -152,11 +183,11 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       window.removeEventListener("online", onOnline);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, token]);
+  }, [live, token]);
 
   // Tab/focus monitoring.
   useEffect(() => {
-    if (!active || !proctoring.tab_switch) return;
+    if (!live || !proctoring.tab_switch) return;
     const onVis = () => (document.hidden ? report("tab_blur") : report("tab_focus"));
     const onBlur = () => report("focus_loss");
     document.addEventListener("visibilitychange", onVis);
@@ -165,11 +196,11 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("blur", onBlur);
     };
-  }, [active, proctoring.tab_switch, report]);
+  }, [live, proctoring.tab_switch, report]);
 
   // Copy/paste blocking.
   useEffect(() => {
-    if (!active || !proctoring.block_copy_paste) return;
+    if (!live || !proctoring.block_copy_paste) return;
     const onCopy = (e: ClipboardEvent) => { e.preventDefault(); report("copy"); };
     const onPaste = (e: ClipboardEvent) => { e.preventDefault(); report("paste"); };
     document.addEventListener("copy", onCopy);
@@ -178,11 +209,11 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("paste", onPaste);
     };
-  }, [active, proctoring.block_copy_paste, report]);
+  }, [live, proctoring.block_copy_paste, report]);
 
   // Fullscreen enforcement: if the candidate leaves fullscreen, block until they return.
   useEffect(() => {
-    if (!active || !proctoring.fullscreen) return;
+    if (!live || !proctoring.fullscreen) return;
     const onFs = () => {
       if (!document.fullscreenElement) {
         setFsBlocked(true);
@@ -194,16 +225,17 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     document.addEventListener("fullscreenchange", onFs);
     if (!document.fullscreenElement) setFsBlocked(true);
     return () => document.removeEventListener("fullscreenchange", onFs);
-  }, [active, proctoring.fullscreen, report]);
+  }, [live, proctoring.fullscreen, report]);
 
-  // Continuous screen recording: record the whole screen and upload chunks.
-  // Chunks that fail to upload (offline) are queued and flushed when back online.
+  // Continuous screen recording: record the whole screen and upload chunks,
+  // reusing the screen stream captured at the permission gate. Chunks that fail
+  // to upload (offline) are queued and flushed when back online.
   useEffect(() => {
-    if (!active || !proctoring.record_screen) return;
-    let stream: MediaStream | null = null;
+    if (!live || !proctoring.record_screen) return;
+    const stream = screenStreamRef.current;
+    if (!stream) return;
     let recorder: MediaRecorder | null = null;
     let seq = 0;
-    let cancelled = false;
     const queue: Blob[] = [];
 
     async function upload(blob: Blob, n: number) {
@@ -217,58 +249,44 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       if (!res.ok) throw new Error(String(res.status));
     }
 
-    (async () => {
+    const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9"
+      : "video/webm";
+    recorder = new MediaRecorder(stream, { mimeType: mime });
+    recorder.ondataavailable = async (e) => {
+      if (!e.data || e.data.size === 0) return;
+      const n = seq++;
       try {
-        stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        await upload(e.data, n);
       } catch {
-        report("screen_denied");
-        return;
+        queue.push(e.data); // retry when online
       }
-      if (cancelled) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : "video/webm";
-      recorder = new MediaRecorder(stream, { mimeType: mime });
-      recorder.ondataavailable = async (e) => {
-        if (!e.data || e.data.size === 0) return;
-        const n = seq++;
+      // Opportunistically flush any queued chunks.
+      while (navigator.onLine && queue.length) {
+        const b = queue.shift()!;
         try {
-          await upload(e.data, n);
+          await upload(b, seq++);
         } catch {
-          queue.push(e.data); // retry when online
+          queue.unshift(b);
+          break;
         }
-        // Opportunistically flush any queued chunks.
-        while (navigator.onLine && queue.length) {
-          const b = queue.shift()!;
-          try {
-            await upload(b, seq++);
-          } catch {
-            queue.unshift(b);
-            break;
-          }
-        }
-      };
-      recorder.start(5000); // emit a chunk every 5s
-    })();
+      }
+    };
+    recorder.start(5000); // emit a chunk every 5s
 
     return () => {
-      cancelled = true;
       try {
         recorder?.stop();
       } catch {
         /* ignore */
       }
-      stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [active, proctoring.record_screen, report, token]);
+  }, [live, proctoring.record_screen, token]);
 
   // Multiple-display detection: browsers can't disable extra monitors, but we
   // can detect an extended desktop (screen.isExtended) and block until single.
   useEffect(() => {
-    if (!active || !proctoring.single_display) return;
+    if (!live || !proctoring.single_display) return;
     let reported = false;
     const check = () => {
       const extended = (window.screen as Screen & { isExtended?: boolean })
@@ -292,14 +310,14 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       clearInterval(id);
       sc.removeEventListener?.("change", check);
     };
-  }, [active, proctoring.single_display, report]);
+  }, [live, proctoring.single_display, report]);
 
-  // Camera + screen snapshots every 20s.
+  // Camera + screen snapshots every 20s, from the streams captured at the gate.
   useEffect(() => {
-    if (!active || !proctoring.webcam) return;
-    const streams: MediaStream[] = [];
+    if (!live || !proctoring.webcam) return;
     let timer: ReturnType<typeof setInterval> | null = null;
     let cancelled = false;
+    const els: HTMLVideoElement[] = [];
 
     function snapshot(video: HTMLVideoElement, type: string) {
       const canvas = document.createElement("canvas");
@@ -311,23 +329,19 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
 
     (async () => {
       const videos: { el: HTMLVideoElement; type: string }[] = [];
-      // Camera
-      try {
-        const cam = await navigator.mediaDevices.getUserMedia({ video: true });
-        streams.push(cam);
+      const sources: [MediaStream | null, string][] = [
+        [camStreamRef.current, "webcam_snapshot"],
+        [screenStreamRef.current, "screen_snapshot"],
+      ];
+      for (const [stream, type] of sources) {
+        if (!stream) continue;
         const v = document.createElement("video");
-        v.srcObject = cam; v.muted = true; await v.play();
-        videos.push({ el: v, type: "webcam_snapshot" });
-      } catch { report("webcam_denied"); }
-      // Screen
-      try {
-        const scr = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        streams.push(scr);
-        const v = document.createElement("video");
-        v.srcObject = scr; v.muted = true; await v.play();
-        videos.push({ el: v, type: "screen_snapshot" });
-      } catch { report("screen_denied"); }
-
+        v.srcObject = stream;
+        v.muted = true;
+        await v.play().catch(() => {});
+        els.push(v);
+        videos.push({ el: v, type });
+      }
       if (cancelled) return;
       const tick = () => videos.forEach((x) => snapshot(x.el, x.type));
       tick();
@@ -337,19 +351,78 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
-      streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
+      els.forEach((v) => {
+        v.pause();
+        v.srcObject = null;
+      });
     };
-  }, [active, proctoring.webcam, report]);
+  }, [live, proctoring.webcam, report]);
 
-  async function start() {
+  // Acquire the required permissions. Screen capture must be the ENTIRE screen
+  // (displaySurface "monitor"), not a window or browser tab.
+  async function acquirePermissions() {
+    const needCam = !!proctoring.webcam;
+    const needScreen = !!(proctoring.webcam || proctoring.record_screen);
+
+    if (needCam && !camStreamRef.current) {
+      try {
+        camStreamRef.current = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        setPerm((p) => ({ ...p, camera: "granted" }));
+      } catch {
+        setPerm((p) => ({ ...p, camera: "denied" }));
+        throw new Error("Camera access is required. Please allow your camera.");
+      }
+    }
+
+    if (needScreen && !screenStreamRef.current) {
+      let scr: MediaStream;
+      try {
+        scr = await navigator.mediaDevices.getDisplayMedia({
+          video: { displaySurface: "monitor" } as MediaTrackConstraints,
+          audio: false,
+        });
+      } catch {
+        setPerm((p) => ({ ...p, screen: "denied" }));
+        throw new Error("Screen sharing is required. Please share your screen.");
+      }
+      const surface = (
+        scr.getVideoTracks()[0]?.getSettings() as
+          | (MediaTrackSettings & { displaySurface?: string })
+          | undefined
+      )?.displaySurface;
+      // When the browser reports the surface, enforce a full monitor share.
+      if (surface && surface !== "monitor") {
+        scr.getTracks().forEach((t) => t.stop());
+        setPerm((p) => ({ ...p, screen: "denied" }));
+        throw new Error(
+          "Please share your entire screen (the whole monitor), not a window or a tab.",
+        );
+      }
+      screenStreamRef.current = scr;
+      setPerm((p) => ({ ...p, screen: "granted" }));
+    }
+  }
+
+  // Gate: check permissions (and fullscreen), then start or resume the exam.
+  async function enterExam() {
     setError(null);
+    setGateError(null);
+    setGateBusy(true);
     try {
+      await acquirePermissions();
       if (proctoring.fullscreen) {
         await document.documentElement.requestFullscreen?.().catch(() => {});
       }
-      applyState(await call(`${token}/start`, "POST"));
+      if (state?.status === "not_started") {
+        applyState(await call(`${token}/start`, "POST"));
+      }
+      setEntered(true);
     } catch (e) {
-      setError((e as Error).message);
+      setGateError((e as Error).message);
+    } finally {
+      setGateBusy(false);
     }
   }
 
@@ -396,31 +469,73 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     );
   }
 
-  if (state.status === "not_started") {
+  if (!entered) {
+    const resuming = state.status === "in_progress";
+    const needCam = !!proctoring.webcam;
+    const needScreen = !!(proctoring.webcam || proctoring.record_screen);
+    const rmm = String(Math.floor(remaining / 60)).padStart(2, "0");
+    const rss = String(remaining % 60).padStart(2, "0");
     return (
       <Centered accent={accent}>
         <div style={{ ...cardStyle, maxWidth: 540, textAlign: "left" }}>
           <Brand state={state} />
           <h1 style={{ margin: "14px 0 4px", fontSize: 30 }}>{state.test_title}</h1>
           <p style={{ color: "var(--muted)", marginTop: 0 }}>
-            Hello {state.candidate_name} 👋
+            {resuming
+              ? `Welcome back, ${state.candidate_name} — your assessment is in progress.`
+              : `Hello ${state.candidate_name} 👋`}
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0" }}>
-            <Chip>⏱ {state.duration_minutes} min</Chip>
-            {state.proctoring?.webcam && <Chip>📷 Camera & screen</Chip>}
+            <Chip>⏱ {resuming ? `${rmm}:${rss} left` : `${state.duration_minutes} min`}</Chip>
+            {needCam && <Chip>📷 Camera & screen</Chip>}
             {state.proctoring?.fullscreen && <Chip>⛶ Fullscreen</Chip>}
             {state.proctoring?.tab_switch && <Chip>👁 Tab monitored</Chip>}
           </div>
+
+          {(needCam || needScreen) && (
+            <div style={{ margin: "8px 0 16px" }}>
+              <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 6 }}>
+                Before you {resuming ? "continue" : "begin"}, we need:
+              </div>
+              {needCam && <PermItem label="Camera access" status={perm.camera} />}
+              {needScreen && (
+                <PermItem
+                  label="Screen sharing — your entire screen"
+                  status={perm.screen}
+                />
+              )}
+            </div>
+          )}
+
           <ul style={{ color: "var(--muted)", lineHeight: 1.9, fontSize: 14 }}>
-            <li>The timer starts when you click Begin.</li>
+            {!resuming && <li>The timer starts when you click Begin.</li>}
             <li>Answers save automatically as you go.</li>
-            {state.proctoring?.webcam && (
-              <li>You&apos;ll be asked to share your camera and screen.</li>
+            {needScreen && (
+              <li>
+                When prompted, choose <strong>Entire Screen</strong> (not a window
+                or tab) and share it.
+              </li>
             )}
           </ul>
+
+          {gateError && <p style={{ color: "#ff8a8a" }}>{gateError}</p>}
           {error && <p style={{ color: "#ff8a8a" }}>{error}</p>}
-          <button onClick={start} style={{ ...btn(accent), width: "100%", marginTop: 8 }}>
-            Begin assessment →
+          <button
+            onClick={enterExam}
+            disabled={gateBusy}
+            style={{
+              ...btn(accent),
+              width: "100%",
+              marginTop: 8,
+              opacity: gateBusy ? 0.7 : 1,
+              cursor: gateBusy ? "default" : "pointer",
+            }}
+          >
+            {gateBusy
+              ? "Checking permissions…"
+              : resuming
+                ? "Continue test →"
+                : "Begin assessment →"}
           </button>
         </div>
       </Centered>
@@ -687,6 +802,27 @@ function Brand({ state, compact }: { state: ExamState; compact?: boolean }) {
     return <img src={logo} alt={name || "logo"} style={{ height: compact ? 24 : 40 }} />;
   if (name) return <span style={{ fontWeight: 700 }}>{name}</span>;
   return <span style={{ fontWeight: 700, color: "var(--muted)" }}>{APP}</span>;
+}
+
+function PermItem({ label, status }: { label: string; status: PermStatus }) {
+  const icon = status === "granted" ? "✅" : status === "denied" ? "❌" : "•";
+  const color =
+    status === "denied" ? "#ff8a8a" : status === "granted" ? "#7ee787" : "var(--muted)";
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "4px 0",
+        fontSize: 14,
+        color,
+      }}
+    >
+      <span style={{ width: 18, textAlign: "center" }}>{icon}</span>
+      <span>{label}</span>
+    </div>
+  );
 }
 
 function Chip({ children }: { children: React.ReactNode }) {
