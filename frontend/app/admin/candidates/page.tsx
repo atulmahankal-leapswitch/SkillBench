@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   api,
   ApiError,
   Candidate,
   Page,
 } from "@/lib/client";
+import { useUrlParam } from "@/lib/url";
 import {
   Badge,
   Button,
@@ -36,8 +37,17 @@ const EMPTY: FormState = {
 };
 
 export default function CandidatesPage() {
+  return (
+    <Suspense fallback={null}>
+      <CandidatesInner />
+    </Suspense>
+  );
+}
+
+function CandidatesInner() {
+  const [urlSearch, setUrlSearch] = useUrlParam("q", "");
   const [items, setItems] = useState<Candidate[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(urlSearch);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Candidate | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -47,7 +57,7 @@ export default function CandidatesPage() {
   async function load() {
     setLoading(true);
     try {
-      const q = search ? `?q=${encodeURIComponent(search)}` : "";
+      const q = urlSearch ? `?q=${encodeURIComponent(urlSearch)}` : "";
       const data = await api.get<Page<Candidate>>(`/candidates${q}`);
       setItems(data.items);
     } catch (e) {
@@ -58,9 +68,10 @@ export default function CandidatesPage() {
   }
 
   useEffect(() => {
+    setSearch(urlSearch);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [urlSearch]);
 
   function openCreate() {
     setEditing(null);
@@ -129,12 +140,17 @@ export default function CandidatesPage() {
           placeholder="Search name or email…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && load()}
+          onKeyDown={(e) => e.key === "Enter" && setUrlSearch(search.trim())}
           style={{ ...inputStyle, maxWidth: 320 }}
         />
-        <Button variant="ghost" onClick={load}>
+        <Button variant="ghost" onClick={() => setUrlSearch(search.trim())}>
           Search
         </Button>
+        {urlSearch && (
+          <Button variant="ghost" onClick={() => setUrlSearch("")}>
+            Clear
+          </Button>
+        )}
       </div>
 
       <ErrorText message={!showForm ? error : null} />

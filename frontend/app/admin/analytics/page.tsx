@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { api, ApiError, Page, TestSummary } from "@/lib/client";
+import { useUrlParam } from "@/lib/url";
 import { Button, ErrorText, inputStyle, PageHeader } from "@/components/ui";
 
 type Overview = {
@@ -45,9 +46,17 @@ function Card({ label, value }: { label: string; value: string | number }) {
 }
 
 export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AnalyticsInner />
+    </Suspense>
+  );
+}
+
+function AnalyticsInner() {
   const [ov, setOv] = useState<Overview | null>(null);
   const [tests, setTests] = useState<TestSummary[]>([]);
-  const [testId, setTestId] = useState("");
+  const [testId, setTestId] = useUrlParam("test_id", "");
   const [stats, setStats] = useState<TestStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,15 +71,20 @@ export default function AnalyticsPage() {
     })();
   }, []);
 
-  async function loadTest(id: string) {
-    setTestId(id);
+  // Load per-test stats whenever the selected test (from the URL) changes.
+  useEffect(() => {
     setStats(null);
-    if (!id) return;
-    try {
-      setStats(await api.get<TestStats>(`/analytics/tests/${id}`));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Failed to load test stats");
-    }
+    if (!testId) return;
+    api
+      .get<TestStats>(`/analytics/tests/${testId}`)
+      .then(setStats)
+      .catch((e) =>
+        setError(e instanceof ApiError ? e.message : "Failed to load test stats")
+      );
+  }, [testId]);
+
+  function loadTest(id: string) {
+    setTestId(id);
   }
 
   const maxBucket = stats ? Math.max(1, ...stats.distribution) : 1;

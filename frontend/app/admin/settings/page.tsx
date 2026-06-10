@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/client";
+import { useUrlParam } from "@/lib/url";
 import {
   Badge,
   Button,
@@ -37,6 +38,15 @@ const SCOPES = ["candidate:read", "result:read"];
 const EVENTS = ["attempt.submitted", "result.ready"];
 const TABS = ["Branding", "AI Provider", "API Keys", "Webhooks"] as const;
 type Tab = (typeof TABS)[number];
+const TAB_SLUG: Record<Tab, string> = {
+  Branding: "branding",
+  "AI Provider": "ai",
+  "API Keys": "api-keys",
+  Webhooks: "webhooks",
+};
+const SLUG_TAB: Record<string, Tab> = Object.fromEntries(
+  Object.entries(TAB_SLUG).map(([t, s]) => [s, t as Tab])
+);
 
 const PROVIDER_LABELS: Record<string, string> = {
   "": "Disabled",
@@ -47,7 +57,17 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<Tab>("Branding");
+  return (
+    <Suspense fallback={null}>
+      <SettingsInner />
+    </Suspense>
+  );
+}
+
+function SettingsInner() {
+  const [tabSlug, setTabSlug] = useUrlParam("tab", "branding");
+  const tab: Tab = SLUG_TAB[tabSlug] ?? "Branding";
+  const setTab = (t: Tab) => setTabSlug(TAB_SLUG[t]);
   const [error, setError] = useState<string | null>(null);
 
   // Branding

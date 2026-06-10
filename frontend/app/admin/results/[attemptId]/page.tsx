@@ -1,8 +1,9 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 import Link from "next/link";
 import { api, ApiError, QuestionResult, ResultDetail } from "@/lib/client";
+import { useUrlParam } from "@/lib/url";
 import { Badge, Button, ErrorText, inputStyle } from "@/components/ui";
 
 type Integrity = {
@@ -32,10 +33,18 @@ export default function ResultDetailPage({
   params: Promise<{ attemptId: string }>;
 }) {
   const { attemptId } = use(params);
+  return (
+    <Suspense fallback={null}>
+      <ResultDetailInner attemptId={attemptId} />
+    </Suspense>
+  );
+}
+
+function ResultDetailInner({ attemptId }: { attemptId: string }) {
+  const [tab, setTab] = useUrlParam("tab", "questions");
   const [d, setD] = useState<ResultDetail | null>(null);
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
   const [proctor, setProctor] = useState<Proctor | null>(null);
-  const [tab, setTab] = useState<"questions" | "remark">("questions");
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
