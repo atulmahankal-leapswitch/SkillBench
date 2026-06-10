@@ -75,6 +75,23 @@ export default function SchedulesPage() {
     setShowForm(true);
   }
 
+  async function reschedule(s: Schedule) {
+    setError(null);
+    const [t, c] = await Promise.all([
+      api.get<Page<TestSummary>>(`/tests?limit=100`),
+      api.get<Page<Candidate>>(`/candidates?limit=100`),
+    ]);
+    setTests(t.items);
+    setCandidates(c.items);
+    setTestId(s.test.id);
+    setCandidateId(s.candidate.id);
+    const now = new Date();
+    const later = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
+    setStartAt(toLocalInput(now));
+    setEndAt(toLocalInput(later));
+    setShowForm(true);
+  }
+
   async function save() {
     setError(null);
     try {
@@ -178,7 +195,7 @@ export default function SchedulesPage() {
                     <Button variant="ghost" onClick={() => copyLink(s)}>
                       Copy link
                     </Button>{" "}
-                    {(s.status === "scheduled" || s.status === "in_progress") && (
+                    {s.status === "scheduled" || s.status === "in_progress" ? (
                       <>
                         <Button variant="ghost" onClick={() => resend(s)}>
                           Resend
@@ -187,6 +204,10 @@ export default function SchedulesPage() {
                           Cancel
                         </Button>
                       </>
+                    ) : (
+                      <Button variant="ghost" onClick={() => reschedule(s)}>
+                        Reschedule
+                      </Button>
                     )}
                   </td>
                 </tr>
