@@ -71,6 +71,11 @@ class AnswerSubmit(BaseModel):
     response: dict[str, Any]
 
 
+class ResumeRequest(BaseModel):
+    # Seconds the candidate was offline; credited back to the deadline (capped).
+    offline_seconds: int = 0
+
+
 class RunRequest(BaseModel):
     question_id: uuid.UUID
     language: str

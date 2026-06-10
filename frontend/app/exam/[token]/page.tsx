@@ -59,6 +59,8 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
   const [saving, setSaving] = useState(false);
   const [fsBlocked, setFsBlocked] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [disconnected, setDisconnected] = useState(false);
+  const offlineAtRef = useRef<number | null>(null);
   const submittedRef = useRef(false);
 
   const accent = state?.branding?.brand_color || "#4f8cff";
@@ -96,9 +98,9 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
   const proctoring = state?.proctoring ?? {};
   const active = state?.status === "in_progress";
 
-  // Countdown + auto-submit.
+  // Countdown + auto-submit. Frozen while disconnected (see online/offline).
   useEffect(() => {
-    if (!active) return;
+    if (!active || disconnected) return;
     const id = setInterval(() => {
       setRemaining((r) => {
         if (r <= 1) {
@@ -110,7 +112,44 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [active, doSubmit]);
+  }, [active, disconnected, doSubmit]);
+
+  // Connection drop → freeze the timer + block the exam; on reconnect, credit
+  // the offline time back to the server deadline and resync.
+  useEffect(() => {
+    if (!active) return;
+    const onOffline = () => {
+      offlineAtRef.current = Date.now();
+      setDisconnected(true);
+    };
+    const onOnline = async () => {
+      const secs = offlineAtRef.current
+        ? Math.round((Date.now() - offlineAtRef.current) / 1000)
+        : 0;
+      offlineAtRef.current = null;
+      try {
+        const s = await call(`${token}/resume`, "POST", { offline_seconds: secs });
+        applyState(s);
+      } catch {
+        // If resume fails, fall back to a plain state refresh.
+        try {
+          applyState(await call(`${token}`, "GET"));
+        } catch {
+          /* stay disconnected until the next online event */
+          return;
+        }
+      }
+      setDisconnected(false);
+    };
+    if (!navigator.onLine) onOffline();
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, token]);
 
   // Tab/focus monitoring.
   useEffect(() => {
@@ -306,6 +345,19 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
             <button onClick={reenterFullscreen} style={btn(accent)}>
               Return to fullscreen
             </button>
+          </div>
+        </div>
+      )}
+
+      {disconnected && (
+        <div style={overlayStyle}>
+          <div style={{ ...cardStyle, maxWidth: 420, textAlign: "center" }}>
+            <div style={{ fontSize: 40 }}>📡</div>
+            <h2>Connection lost</h2>
+            <p style={{ color: "var(--muted)" }}>
+              Your timer is <strong>paused</strong>. Stay on this page — the assessment will
+              resume automatically once your connection is back.
+            </p>
           </div>
         </div>
       )}

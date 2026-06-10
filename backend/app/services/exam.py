@@ -221,6 +221,29 @@ async def start_attempt(db: AsyncSession, token: str) -> ExamState:
     return await _build_state(db, schedule, attempt)
 
 
+# Max total deadline extension credited across all connection-drop resumes,
+# so a candidate can't freeze the clock indefinitely by going offline.
+MAX_PAUSE_CREDIT_SECONDS = 600
+
+
+async def resume_attempt(db: AsyncSession, token: str, offline_seconds: int) -> ExamState:
+    """Credit time lost to a connection drop. The client reports how long it was
+    offline; the server extends `expires_at` by that amount, capped per attempt."""
+    _, schedule = await _load(db, token)
+    attempt = await _get_attempt(db, schedule)
+    if attempt and attempt.status == AttemptStatus.IN_PROGRESS and attempt.expires_at:
+        secs = max(0, min(int(offline_seconds or 0), MAX_PAUSE_CREDIT_SECONDS))
+        room = MAX_PAUSE_CREDIT_SECONDS - attempt.time_credit_seconds
+        credit = min(secs, max(0, room))
+        if credit > 0:
+            attempt.expires_at = attempt.expires_at + timedelta(seconds=credit)
+            attempt.time_credit_seconds += credit
+            await db.commit()
+            await db.refresh(attempt)
+        await _enforce_expiry(db, attempt)
+    return await _build_state(db, schedule, attempt)
+
+
 async def save_answer(db: AsyncSession, token: str, data: AnswerSubmit) -> dict:
     _, schedule = await _load(db, token)
     attempt = await _get_attempt(db, schedule)

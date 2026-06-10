@@ -87,17 +87,11 @@ function CandidatesInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlSearch]);
 
-  // Org id powers the public "Apply to job" link.
-  const [orgId, setOrgId] = useState("");
-  useEffect(() => {
-    api
-      .get<{ user: { organization: { id: string } } }>("/auth/me")
-      .then((d) => setOrgId(d.user.organization.id))
-      .catch(() => {});
-  }, []);
-
-  function openApply() {
-    if (orgId) window.open(`/apply/${orgId}`, "_blank", "noopener");
+  function openCreate() {
+    setEditing(null);
+    setForm(EMPTY);
+    setError(null);
+    setShowForm(true);
   }
 
   function openEdit(c: Candidate) {
@@ -156,11 +150,7 @@ function CandidatesInner() {
     <main>
       <PageHeader
         title="Candidates"
-        action={
-          <Button onClick={openApply} disabled={!orgId}>
-            Apply to job ↗
-          </Button>
-        }
+        action={<Button onClick={openCreate}>+ New candidate</Button>}
       />
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>

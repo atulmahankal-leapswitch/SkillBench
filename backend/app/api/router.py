@@ -5,7 +5,6 @@ from fastapi import APIRouter
 from app.api.routes import (
     ai,
     analytics,
-    apply,
     auth,
     branding,
     candidates,
@@ -26,7 +25,6 @@ api_router = APIRouter(prefix="/api")
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(candidates.router)
-api_router.include_router(apply.router)
 api_router.include_router(categories.router)
 api_router.include_router(questions.router)
 api_router.include_router(tests.router)

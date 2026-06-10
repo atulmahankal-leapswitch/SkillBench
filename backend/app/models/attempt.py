@@ -54,6 +54,8 @@ class Attempt(Base, TimestampMixin):
     submitted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Seconds of deadline extension credited for connection drops (capped).
+    time_credit_seconds: Mapped[int] = mapped_column(default=0, nullable=False)
 
     schedule: Mapped["Schedule"] = relationship(lazy="joined")
     answers: Mapped[list["Answer"]] = relationship(

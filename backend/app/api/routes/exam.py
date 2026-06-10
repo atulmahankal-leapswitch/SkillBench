@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.schemas.exam import AnswerSubmit, ExamState, RunRequest, RunResponse
+from app.schemas.exam import AnswerSubmit, ExamState, ResumeRequest, RunRequest, RunResponse
 from app.services import exam as svc
 
 
@@ -24,6 +24,14 @@ async def get_state(token: str, db: AsyncSession = Depends(get_db)) -> ExamState
 @router.post("/{token}/start", response_model=ExamState)
 async def start(token: str, db: AsyncSession = Depends(get_db)) -> ExamState:
     return await svc.start_attempt(db, token)
+
+
+@router.post("/{token}/resume", response_model=ExamState)
+async def resume(
+    token: str, data: ResumeRequest, db: AsyncSession = Depends(get_db)
+) -> ExamState:
+    """Reconnect after a connection drop — credit the offline time to the deadline."""
+    return await svc.resume_attempt(db, token, data.offline_seconds)
 
 
 @router.put("/{token}/answer")
