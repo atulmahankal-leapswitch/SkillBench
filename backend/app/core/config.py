@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     )
     allowed_admin_email_domains: str = "leapswitch.com"
 
+    # Test-mode / bootstrap password login (DISABLED by default; never enable in
+    # production). Lets the first admin sign in without Google to set things up.
+    allow_password_login: bool = False
+    bootstrap_admin_email: str = ""
+    bootstrap_admin_password: str = ""
+
     # Email (SMTP) for invitations / notifications
     smtp_host: str = ""
     smtp_port: int = 587

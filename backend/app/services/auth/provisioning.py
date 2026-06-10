@@ -41,6 +41,23 @@ async def _org_user_count(db: AsyncSession, org_id) -> int:
     ).scalar_one()
 
 
+async def upsert_bootstrap_admin(db: AsyncSession, email: str, name: str) -> User:
+    """Provision (or fetch) a bootstrap admin from a plain email.
+
+    Reuses the same org/first-user-Owner logic as Google sign-in by building a
+    synthetic profile. Used only by the gated test-mode password login.
+    """
+    profile = GoogleProfile(
+        sub=f"bootstrap:{email.lower()}",
+        email=email,
+        email_verified=True,
+        name=name or "Bootstrap Admin",
+        picture="",
+        hosted_domain=email_domain(email),
+    )
+    return await upsert_user_from_google(db, profile)
+
+
 async def upsert_user_from_google(
     db: AsyncSession, profile: GoogleProfile
 ) -> User:

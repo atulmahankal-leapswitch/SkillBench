@@ -1,4 +1,5 @@
 import { browserApiBase } from "@/lib/api";
+import PasswordForm from "./password-form";
 
 const ERRORS: Record<string, string> = {
   domain_not_allowed:
@@ -13,10 +14,11 @@ const ERRORS: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; testmode?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, testmode } = await searchParams;
   const message = error ? (ERRORS[error] ?? "Sign-in failed.") : null;
+  const isTestMode = testmode !== undefined;
 
   return (
     <main
@@ -59,24 +61,30 @@ export default async function LoginPage({
           </p>
         )}
 
-        <a
-          href={`${browserApiBase}/api/auth/google/login`}
-          style={{
-            display: "block",
-            marginTop: 20,
-            padding: "12px 16px",
-            background: "var(--accent)",
-            color: "#fff",
-            borderRadius: 8,
-            fontWeight: 600,
-            textDecoration: "none",
-          }}
-        >
-          Continue with Google
-        </a>
+        {isTestMode ? (
+          <PasswordForm />
+        ) : (
+          <a
+            href={`${browserApiBase}/api/auth/google/login`}
+            style={{
+              display: "block",
+              marginTop: 20,
+              padding: "12px 16px",
+              background: "var(--accent)",
+              color: "#fff",
+              borderRadius: 8,
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Continue with Google
+          </a>
+        )}
 
         <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 18 }}>
-          Restricted to your organisation's email domain.
+          {isTestMode
+            ? "Test-mode bootstrap login (local setup only)."
+            : "Restricted to your organisation's email domain."}
         </p>
       </div>
     </main>

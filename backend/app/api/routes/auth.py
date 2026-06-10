@@ -1,10 +1,12 @@
 """Authentication routes: Google OAuth sign-in, session, logout."""
 
+import hmac
 from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -22,7 +24,15 @@ from app.core.security import (
 from app.models.user import User
 from app.schemas.auth import MeResponse, UserOut
 from app.services.auth import google
-from app.services.auth.provisioning import upsert_user_from_google
+from app.services.auth.provisioning import (
+    upsert_bootstrap_admin,
+    upsert_user_from_google,
+)
+
+
+class PasswordLogin(BaseModel):
+    email: EmailStr
+    password: str
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -116,6 +126,51 @@ async def google_callback(
     response = _login_redirect()
     _set_session_cookies(response, user)
     return response
+
+
+@router.post("/password-login", response_model=MeResponse)
+async def password_login(
+    data: PasswordLogin,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> MeResponse:
+    """Test-mode/bootstrap login. Gated by ALLOW_PASSWORD_LOGIN; never for prod."""
+    if not settings.allow_password_login:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Password login is disabled"
+        )
+    if not (settings.bootstrap_admin_email and settings.bootstrap_admin_password):
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Bootstrap admin credentials are not configured",
+        )
+    email_ok = hmac.compare_digest(
+        data.email.strip().lower(), settings.bootstrap_admin_email.strip().lower()
+    )
+    pw_ok = hmac.compare_digest(data.password, settings.bootstrap_admin_password)
+    if not (email_ok and pw_ok):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
+
+    user = await upsert_bootstrap_admin(db, data.email, "Bootstrap Admin")
+    _set_session_cookies(response, user)
+
+    # Re-load with relationships for serialization.
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from app.models.user import Role as _Role
+
+    full = (
+        await db.execute(
+            select(User)
+            .where(User.id == user.id)
+            .options(
+                selectinload(User.organization),
+                selectinload(User.roles).selectinload(_Role.permissions),
+            )
+        )
+    ).scalar_one()
+    return MeResponse(user=_serialize_user(full))
 
 
 @router.get("/me", response_model=MeResponse)
