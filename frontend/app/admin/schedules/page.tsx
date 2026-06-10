@@ -178,12 +178,16 @@ export default function SchedulesPage() {
                     <Button variant="ghost" onClick={() => copyLink(s)}>
                       Copy link
                     </Button>{" "}
-                    <Button variant="ghost" onClick={() => resend(s)}>
-                      Resend
-                    </Button>{" "}
-                    <Button variant="danger" onClick={() => cancel(s)}>
-                      Cancel
-                    </Button>
+                    {(s.status === "scheduled" || s.status === "in_progress") && (
+                      <>
+                        <Button variant="ghost" onClick={() => resend(s)}>
+                          Resend
+                        </Button>{" "}
+                        <Button variant="danger" onClick={() => cancel(s)}>
+                          Cancel
+                        </Button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))

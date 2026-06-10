@@ -63,6 +63,7 @@ class ResultDetail(BaseModel):
     percent: float
     passed: bool
     needs_review: bool
+    submitted_at: datetime | None
     graded_at: datetime | None
     questions: list[QuestionResultOut]
 

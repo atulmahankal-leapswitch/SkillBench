@@ -158,6 +158,7 @@ export type ResultDetail = {
   percent: number;
   passed: boolean;
   needs_review: boolean;
+  submitted_at: string | null;
   graded_at: string | null;
   questions: QuestionResult[];
 };

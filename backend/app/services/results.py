@@ -123,6 +123,7 @@ async def get_detail(db: AsyncSession, user: User, attempt_id: uuid.UUID) -> Res
         percent=float(result.percent),
         passed=result.passed,
         needs_review=result.needs_review,
+        submitted_at=attempt.submitted_at,
         graded_at=result.graded_at,
         questions=q_out,
     )
