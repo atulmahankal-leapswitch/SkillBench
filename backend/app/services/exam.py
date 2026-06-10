@@ -107,7 +107,9 @@ async def _materialize_questions(
     return selected
 
 
-async def _enforce_expiry(db: AsyncSession, attempt: Attempt) -> None:
+async def _enforce_expiry(
+    db: AsyncSession, schedule: Schedule, attempt: Attempt
+) -> None:
     now = datetime.now(UTC)
     if (
         attempt.status == AttemptStatus.IN_PROGRESS
@@ -116,6 +118,9 @@ async def _enforce_expiry(db: AsyncSession, attempt: Attempt) -> None:
     ):
         attempt.status = AttemptStatus.EXPIRED
         attempt.submitted_at = attempt.expires_at
+        # The attempt's own clock ran out — the schedule is finished even if its
+        # window is still open, so finalize it (mirrors submit_attempt).
+        schedule.status = ScheduleStatus.COMPLETED
         await db.commit()
         await db.refresh(attempt)
         result = await grade_attempt(db, attempt)
@@ -185,7 +190,7 @@ async def get_state(db: AsyncSession, token: str) -> ExamState:
     invitation, schedule = await _load(db, token)
     attempt = await _get_attempt(db, schedule)
     if attempt:
-        await _enforce_expiry(db, attempt)
+        await _enforce_expiry(db, schedule, attempt)
     return await _build_state(db, schedule, attempt)
 
 
@@ -217,7 +222,7 @@ async def start_attempt(db: AsyncSession, token: str) -> ExamState:
         await db.commit()
         await db.refresh(attempt)
     else:
-        await _enforce_expiry(db, attempt)
+        await _enforce_expiry(db, schedule, attempt)
     return await _build_state(db, schedule, attempt)
 
 
@@ -240,7 +245,7 @@ async def resume_attempt(db: AsyncSession, token: str, offline_seconds: int) -> 
             attempt.time_credit_seconds += credit
             await db.commit()
             await db.refresh(attempt)
-        await _enforce_expiry(db, attempt)
+        await _enforce_expiry(db, schedule, attempt)
     return await _build_state(db, schedule, attempt)
 
 
@@ -249,7 +254,7 @@ async def save_answer(db: AsyncSession, token: str, data: AnswerSubmit) -> dict:
     attempt = await _get_attempt(db, schedule)
     if attempt is None:
         raise HTTPException(http.HTTP_409_CONFLICT, "Attempt not started")
-    await _enforce_expiry(db, attempt)
+    await _enforce_expiry(db, schedule, attempt)
     if attempt.status != AttemptStatus.IN_PROGRESS:
         raise HTTPException(http.HTTP_409_CONFLICT, "Attempt is not in progress")
 
@@ -280,7 +285,7 @@ async def run_code(db: AsyncSession, token: str, data: RunRequest) -> RunRespons
     attempt = await _get_attempt(db, schedule)
     if attempt is None:
         raise HTTPException(http.HTTP_409_CONFLICT, "Attempt not started")
-    await _enforce_expiry(db, attempt)
+    await _enforce_expiry(db, schedule, attempt)
     if attempt.status != AttemptStatus.IN_PROGRESS:
         raise HTTPException(http.HTTP_409_CONFLICT, "Attempt is not in progress")
 
@@ -345,7 +350,7 @@ async def submit_attempt(db: AsyncSession, token: str) -> ExamState:
     attempt = await _get_attempt(db, schedule)
     if attempt is None:
         raise HTTPException(http.HTTP_409_CONFLICT, "Attempt not started")
-    await _enforce_expiry(db, attempt)
+    await _enforce_expiry(db, schedule, attempt)
     if attempt.status == AttemptStatus.IN_PROGRESS:
         attempt.status = AttemptStatus.SUBMITTED
         attempt.submitted_at = datetime.now(UTC)
