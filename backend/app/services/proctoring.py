@@ -20,10 +20,13 @@ ALLOWED_TYPES = {
     "tab_focus",
     "focus_loss",
     "fullscreen_exit",
+    "fullscreen_enter",
     "copy",
     "paste",
     "webcam_snapshot",
     "webcam_denied",
+    "screen_snapshot",
+    "screen_denied",
 }
 
 
