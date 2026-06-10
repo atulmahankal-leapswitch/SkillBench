@@ -61,6 +61,7 @@ async def list_schedules(
     status_: str | None,
     candidate_id: uuid.UUID | None,
     test_id: uuid.UUID | None,
+    q: str | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Schedule], int]:
@@ -71,6 +72,24 @@ async def list_schedules(
         stmt = stmt.where(Schedule.candidate_id == candidate_id)
     if test_id:
         stmt = stmt.where(Schedule.test_id == test_id)
+    if q:
+        from sqlalchemy import or_
+
+        from app.models.candidate import Candidate
+        from app.models.test import Test
+
+        like = f"%{q}%"
+        stmt = (
+            stmt.join(Candidate, Schedule.candidate_id == Candidate.id)
+            .join(Test, Schedule.test_id == Test.id)
+            .where(
+                or_(
+                    Candidate.full_name.ilike(like),
+                    Candidate.email.ilike(like),
+                    Test.title.ilike(like),
+                )
+            )
+        )
     stmt = stmt.order_by(Schedule.start_at.desc())
     items, total = await paginate(db, stmt, limit, offset)
     for s in items:

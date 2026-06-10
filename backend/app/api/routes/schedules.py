@@ -22,12 +22,13 @@ async def list_schedules(
     status_: str | None = Query(default=None, alias="status"),
     candidate_id: uuid.UUID | None = None,
     test_id: uuid.UUID | None = None,
-    limit: int = Query(default=25, ge=1, le=100),
+    q: str | None = None,
+    limit: int = Query(default=25, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> Page[ScheduleOut]:
     items, total = await svc.list_schedules(
         db, user, status_=status_, candidate_id=candidate_id, test_id=test_id,
-        limit=limit, offset=offset,
+        q=q, limit=limit, offset=offset,
     )
     return Page(items=items, total=total, limit=limit, offset=offset)
 
