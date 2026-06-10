@@ -14,6 +14,9 @@ services:
       - ./backend:/app
       # Keep the container's virtualenv from being shadowed by the bind mount.
       - /app/.venv
+      # Container-local Claude Code login (NOT the host ~/.claude). Persists a
+      # `claude login` done inside the container so the SDK provider can use it.
+      - claude-home:/root/.claude
 
   frontend:
     build:
@@ -28,3 +31,7 @@ services:
 
   # In dev we usually hit the services directly on their host ports, so Caddy
   # is optional. Leave it running but it simply proxies localhost.
+
+volumes:
+  # Container-local Claude Code credentials (not the host's ~/.claude).
+  claude-home:
