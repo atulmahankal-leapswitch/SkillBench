@@ -34,8 +34,8 @@ async def status() -> dict:
     if not CRED_PATH.exists():
         return {
             "authenticated": False,
-            "reason": "Not logged in. Run `claude login` on the host "
-            "(its ~/.claude is mounted into the backend).",
+            "reason": "No Claude login found in the backend. Run `claude login` "
+            "inside the backend container, or set ANTHROPIC_API_KEY.",
         }
     try:
         data = json.loads(CRED_PATH.read_text(encoding="utf-8"))
