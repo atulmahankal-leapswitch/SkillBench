@@ -13,6 +13,16 @@ class CandidateStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class CandidateStage(StrEnum):
+    APPLIED = "applied"
+    SCREENING = "screening"
+    ASSESSMENT = "assessment"
+    INTERVIEW = "interview"
+    OFFER = "offer"
+    HIRED = "hired"
+    REJECTED = "rejected"
+
+
 class QuestionType(StrEnum):
     MCQ = "mcq"  # single correct option
     MULTI_SELECT = "multi_select"  # multiple correct options

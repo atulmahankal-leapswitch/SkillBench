@@ -8,6 +8,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.candidate import Candidate, user_candidate_assignments
+from app.models.enums import CandidateSource, CandidateStage
+from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.candidate import CandidateCreate, CandidateUpdate
 from app.services.pagination import paginate
@@ -81,7 +83,9 @@ async def create_candidate(
         organization_id=user.organization_id,
         full_name=data.full_name,
         email=data.email,
+        job_title=data.job_title,
         source=data.source,
+        stage=data.stage,
         tags=data.tags,
         notes=data.notes,
     )
@@ -138,3 +142,34 @@ async def set_assignees(
     await db.commit()
     await db.refresh(candidate)
     return candidate
+
+
+# ── Public self-apply (no auth) ──────────────────────────────────────────────
+async def _public_org(db: AsyncSession, org_id: uuid.UUID) -> Organization:
+    org = (
+        await db.execute(select(Organization).where(Organization.id == org_id))
+    ).scalar_one_or_none()
+    if org is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Organisation not found")
+    return org
+
+
+async def apply_info(db: AsyncSession, org_id: uuid.UUID) -> Organization:
+    return await _public_org(db, org_id)
+
+
+async def public_apply(
+    db: AsyncSession, org_id: uuid.UUID, full_name: str, email: str, job_title: str
+) -> None:
+    org = await _public_org(db, org_id)
+    db.add(
+        Candidate(
+            organization_id=org.id,
+            full_name=full_name,
+            email=email,
+            job_title=job_title,
+            source=CandidateSource.EXTERNAL,
+            stage=CandidateStage.APPLIED,
+        )
+    )
+    await db.commit()

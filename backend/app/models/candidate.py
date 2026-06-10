@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, uuid_pk
-from app.models.enums import CandidateSource, CandidateStatus
+from app.models.enums import CandidateSource, CandidateStage, CandidateStatus
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -46,8 +46,12 @@ class Candidate(Base, TimestampMixin):
     )
     email: Mapped[str] = mapped_column(CITEXT(), nullable=False, index=True)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    job_title: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     source: Mapped[str] = mapped_column(
         String(20), default=CandidateSource.EXTERNAL, nullable=False
+    )
+    stage: Mapped[str] = mapped_column(
+        String(20), default=CandidateStage.APPLIED, nullable=False, index=True
     )
     status: Mapped[str] = mapped_column(
         String(20), default=CandidateStatus.ACTIVE, nullable=False

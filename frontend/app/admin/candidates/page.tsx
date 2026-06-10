@@ -20,10 +20,22 @@ import {
   th,
 } from "@/components/ui";
 
+const STAGES = [
+  "applied",
+  "screening",
+  "assessment",
+  "interview",
+  "offer",
+  "hired",
+  "rejected",
+] as const;
+
 type FormState = {
   full_name: string;
   email: string;
+  job_title: string;
   source: "external" | "internal";
+  stage: (typeof STAGES)[number];
   tags: string;
   notes: string;
 };
@@ -31,7 +43,9 @@ type FormState = {
 const EMPTY: FormState = {
   full_name: "",
   email: "",
+  job_title: "",
   source: "external",
+  stage: "applied",
   tags: "",
   notes: "",
 };
@@ -73,11 +87,17 @@ function CandidatesInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlSearch]);
 
-  function openCreate() {
-    setEditing(null);
-    setForm(EMPTY);
-    setError(null);
-    setShowForm(true);
+  // Org id powers the public "Apply to job" link.
+  const [orgId, setOrgId] = useState("");
+  useEffect(() => {
+    api
+      .get<{ user: { organization: { id: string } } }>("/auth/me")
+      .then((d) => setOrgId(d.user.organization.id))
+      .catch(() => {});
+  }, []);
+
+  function openApply() {
+    if (orgId) window.open(`/apply/${orgId}`, "_blank", "noopener");
   }
 
   function openEdit(c: Candidate) {
@@ -85,7 +105,9 @@ function CandidatesInner() {
     setForm({
       full_name: c.full_name,
       email: c.email,
+      job_title: c.job_title,
       source: c.source,
+      stage: c.stage,
       tags: c.tags.join(", "),
       notes: c.notes,
     });
@@ -98,7 +120,9 @@ function CandidatesInner() {
     const payload = {
       full_name: form.full_name,
       email: form.email,
+      job_title: form.job_title,
       source: form.source,
+      stage: form.stage,
       tags: form.tags
         .split(",")
         .map((t) => t.trim())
@@ -132,7 +156,11 @@ function CandidatesInner() {
     <main>
       <PageHeader
         title="Candidates"
-        action={<Button onClick={openCreate}>+ New candidate</Button>}
+        action={
+          <Button onClick={openApply} disabled={!orgId}>
+            Apply to job ↗
+          </Button>
+        }
       />
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -167,9 +195,9 @@ function CandidatesInner() {
           <thead>
             <tr>
               <th style={th}>Name</th>
-              <th style={th}>Email</th>
-              <th style={th}>Source</th>
-              <th style={th}>Tags</th>
+              <th style={th}>Job title</th>
+              <th style={th}>Stage</th>
+              <th style={th}>Status</th>
               <th style={th}></th>
             </tr>
           </thead>
@@ -189,13 +217,24 @@ function CandidatesInner() {
             ) : (
               items.map((c) => (
                 <tr key={c.id}>
-                  <td style={td}>{c.full_name}</td>
-                  <td style={td}>{c.email}</td>
-                  <td style={td}>{c.source}</td>
                   <td style={td}>
-                    {c.tags.map((t) => (
-                      <Badge key={t}>{t}</Badge>
-                    ))}
+                    {c.full_name}
+                    <div style={{ color: "var(--muted)", fontSize: 12 }}>
+                      {c.email}
+                    </div>
+                  </td>
+                  <td style={td}>
+                    {c.job_title || <span style={{ color: "var(--muted)" }}>—</span>}
+                  </td>
+                  <td style={td}>
+                    <Badge>{c.stage}</Badge>
+                  </td>
+                  <td style={td}>
+                    {c.status === "active" ? (
+                      <span style={{ color: "#2ea043" }}>active</span>
+                    ) : (
+                      <span style={{ color: "var(--muted)" }}>archived</span>
+                    )}
                   </td>
                   <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap" }}>
                     <Button variant="ghost" onClick={() => openEdit(c)}>
@@ -232,21 +271,52 @@ function CandidatesInner() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </Field>
-          <Field label="Source">
-            <select
+          <Field label="Job title">
+            <input
               style={inputStyle}
-              value={form.source}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  source: e.target.value as "external" | "internal",
-                })
-              }
-            >
-              <option value="external">External (hiring)</option>
-              <option value="internal">Internal (employee)</option>
-            </select>
+              value={form.job_title}
+              onChange={(e) => setForm({ ...form, job_title: e.target.value })}
+            />
           </Field>
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <Field label="Stage">
+                <select
+                  style={inputStyle}
+                  value={form.stage}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      stage: e.target.value as FormState["stage"],
+                    })
+                  }
+                >
+                  {STAGES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <div style={{ flex: 1 }}>
+              <Field label="Source">
+                <select
+                  style={inputStyle}
+                  value={form.source}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      source: e.target.value as "external" | "internal",
+                    })
+                  }
+                >
+                  <option value="external">External (hiring)</option>
+                  <option value="internal">Internal (employee)</option>
+                </select>
+              </Field>
+            </div>
+          </div>
           <Field label="Tags (comma-separated)">
             <input
               style={inputStyle}

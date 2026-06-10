@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.models.attempt import Attempt
+from app.models.category import Category, question_categories
 from app.models.question import Question
 from app.models.result import Result
 from app.models.schedule import Schedule
@@ -101,12 +102,28 @@ async def get_detail(db: AsyncSession, user: User, attempt_id: uuid.UUID) -> Res
     questions_by_id = {tq.question.id: tq.question for tq in test.questions}
     responses = {a.question_id: a.response for a in attempt.answers}
 
+    # First category name per question (questions can have several) — used for
+    # the Remarks breakdown. Queried directly to avoid async lazy-loads.
+    cat_by_q: dict[uuid.UUID, str] = {}
+    if questions_by_id:
+        cat_rows = (
+            await db.execute(
+                select(question_categories.c.question_id, Category.name)
+                .join(Category, Category.id == question_categories.c.category_id)
+                .where(question_categories.c.question_id.in_(list(questions_by_id)))
+            )
+        ).all()
+        for qid, cname in cat_rows:
+            cat_by_q.setdefault(qid, cname)
+
     q_out: list[QuestionResultOut] = []
     for qr in result.questions:
         q: Question | None = questions_by_id.get(qr.question_id)
         item = QuestionResultOut.model_validate(qr)
         item.prompt = q.prompt if q else ""
         item.type = q.type if q else ""
+        item.difficulty = q.difficulty if q else ""
+        item.category = cat_by_q.get(qr.question_id, "Uncategorized")
         item.payload = (q.payload or {}) if q else {}
         item.response = responses.get(qr.question_id, {})
         q_out.append(item)

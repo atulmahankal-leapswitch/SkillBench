@@ -42,6 +42,8 @@ class QuestionResultOut(BaseModel):
     # Enriched in the route:
     prompt: str = ""
     type: str = ""
+    difficulty: str = ""
+    category: str = ""
     response: dict[str, Any] = Field(default_factory=dict)
     payload: dict[str, Any] = Field(default_factory=dict)
 

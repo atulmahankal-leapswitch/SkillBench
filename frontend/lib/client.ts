@@ -50,11 +50,22 @@ export type Page<T> = {
 };
 
 // ── Domain types (mirror backend schemas) ───────────────────────────────────
+export type CandidateStage =
+  | "applied"
+  | "screening"
+  | "assessment"
+  | "interview"
+  | "offer"
+  | "hired"
+  | "rejected";
+
 export type Candidate = {
   id: string;
   full_name: string;
   email: string;
+  job_title: string;
   source: "external" | "internal";
+  stage: CandidateStage;
   status: "active" | "archived";
   tags: string[];
   notes: string;
@@ -142,6 +153,8 @@ export type QuestionResult = {
   feedback: string;
   prompt: string;
   type: string;
+  difficulty: string;
+  category: string;
   response: Record<string, unknown>;
   payload: Record<string, unknown>;
 };
