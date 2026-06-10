@@ -19,9 +19,28 @@ from app.schemas.exam import (
     RunResponse,
     build_public_question,
 )
-from app.services import judge0, proctoring
+from app.services import integrations, judge0, proctoring
 from app.services.grading import grade_attempt
 from app.services.schedules import effective_status, get_invitation_by_token
+
+
+def _dispatch_result(attempt: Attempt, result, how: str) -> None:
+    """Fire webhook events after an attempt is graded."""
+    payload = {
+        "attempt_id": str(attempt.id),
+        "schedule_id": str(attempt.schedule_id),
+        "status": attempt.status,
+        "percent": float(result.percent),
+        "passed": result.passed,
+        "needs_review": result.needs_review,
+        "how": how,
+    }
+    integrations.dispatch_in_background(
+        attempt.organization_id, "attempt.submitted", payload
+    )
+    integrations.dispatch_in_background(
+        attempt.organization_id, "result.ready", payload
+    )
 
 
 async def _load(db: AsyncSession, token: str) -> tuple[Invitation, Schedule]:
@@ -53,7 +72,8 @@ async def _enforce_expiry(db: AsyncSession, attempt: Attempt) -> None:
         attempt.submitted_at = attempt.expires_at
         await db.commit()
         await db.refresh(attempt)
-        await grade_attempt(db, attempt)
+        result = await grade_attempt(db, attempt)
+        _dispatch_result(attempt, result, "expired")
 
 
 async def _build_state(
@@ -223,5 +243,6 @@ async def submit_attempt(db: AsyncSession, token: str) -> ExamState:
         schedule.status = ScheduleStatus.COMPLETED
         await db.commit()
         await db.refresh(attempt)
-        await grade_attempt(db, attempt)
+        result = await grade_attempt(db, attempt)
+        _dispatch_result(attempt, result, "submitted")
     return await _build_state(db, schedule, attempt)

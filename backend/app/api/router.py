@@ -8,6 +8,8 @@ from app.api.routes import (
     candidates,
     exam,
     health,
+    integrations,
+    public_api,
     questions,
     results,
     schedules,
@@ -25,3 +27,5 @@ api_router.include_router(schedules.public_router)
 api_router.include_router(exam.router)
 api_router.include_router(results.router)
 api_router.include_router(ai.router)
+api_router.include_router(integrations.router)
+api_router.include_router(public_api.router)

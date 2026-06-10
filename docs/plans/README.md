@@ -16,7 +16,7 @@ time; each is committed to GitHub when complete.
 | 06 | Code execution (Judge0)            | ✅     | [plan](phase-06-code-execution.md)              |
 | 07 | Proctoring                         | ✅     | [plan](phase-07-proctoring.md)                  |
 | 08 | AI-assisted features               | ✅     | [plan](phase-08-ai-features.md)                 |
-| 09 | Integrations (API + webhooks)      | ⬜     | [plan](phase-09-integrations.md)                |
+| 09 | Integrations (API + webhooks)      | ✅     | [plan](phase-09-integrations.md)                |
 | 10 | Benchmarking & analytics           | ⬜     | [plan](phase-10-analytics.md)                   |
 | 11 | Anti-plagiarism / cheat detection  | ⬜     | [plan](phase-11-anti-plagiarism.md)             |
 | 12 | Candidate experience (mobile/brand)| ⬜     | [plan](phase-12-candidate-experience.md)        |
@@ -57,4 +57,6 @@ time; each is committed to GitHub when complete.
 - **Phase 08** complete: provider-agnostic AI (anthropic / claude_code_sdk /
   openai / stub), generate-questions + score-text endpoints, AI text-grading
   integration, question-gen UI. Verified live with stub.
-- **Next:** Phase 09 — Integrations (API + webhooks).
+- **Phase 09** complete: API keys (hashed + scoped) + public v1 API, signed
+  webhooks with retries + delivery log, admin settings UI. Verified live.
+- **Next:** Phase 10 — Benchmarking & analytics.

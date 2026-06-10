@@ -52,6 +52,31 @@ async def get_current_user(
     return user
 
 
+async def require_api_key(
+    request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Authenticate a public-API caller via the X-API-Key header."""
+    from app.services.integrations import resolve_api_key
+
+    raw = request.headers.get("X-API-Key")
+    if not raw:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing X-API-Key header")
+    return await resolve_api_key(db, raw)
+
+
+def require_scope(scope: str):
+    """Dependency factory: require an API key carrying the given scope."""
+
+    async def checker(key=Depends(require_api_key)):
+        if scope not in key.scopes:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, f"API key missing scope: {scope}"
+            )
+        return key
+
+    return checker
+
+
 def require_permission(*codes: str):
     """Dependency factory: require all given permission codes."""
 

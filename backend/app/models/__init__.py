@@ -2,6 +2,7 @@
 
 from app.models.attempt import Answer, Attempt
 from app.models.candidate import Candidate, user_candidate_assignments
+from app.models.integration import ApiKey, Webhook, WebhookDelivery
 from app.models.organization import Organization
 from app.models.proctor import ProctorEvent
 from app.models.question import Question
@@ -35,4 +36,7 @@ __all__ = [
     "Result",
     "QuestionResult",
     "ProctorEvent",
+    "ApiKey",
+    "Webhook",
+    "WebhookDelivery",
 ]
