@@ -150,7 +150,7 @@ function SchedulesCalendar() {
     setTestId(prefill?.test.id ?? "");
     setCandidateId(prefill?.candidate.id ?? "");
     const now = new Date();
-    const later = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
+    const later = new Date(now.getTime() + 3600 * 1000); // default 1-hour window
     setStartAt(toLocalInput(now));
     setEndAt(toLocalInput(later));
     setSelected(null);
