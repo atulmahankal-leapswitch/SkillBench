@@ -63,6 +63,7 @@ function SchedulesCalendar() {
   const [error, setError] = useState<string | null>(null);
   const [searchBox, setSearchBox] = useState(urlSearch);
   const [selected, setSelected] = useState<Schedule | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Create-schedule modal state.
   const [showForm, setShowForm] = useState(false);
@@ -186,7 +187,8 @@ function SchedulesCalendar() {
   function copyLink(s: Schedule) {
     if (!s.invitation) return;
     navigator.clipboard.writeText(`${window.location.origin}/exam/${s.invitation.token}`);
-    alert("Invite link copied.");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   }
 
   const rangeLabel = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
@@ -345,7 +347,7 @@ function SchedulesCalendar() {
             <Badge>{selected.status}</Badge>
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button variant="ghost" onClick={() => copyLink(selected)}>Copy link</Button>
+            <Button variant="ghost" onClick={() => copyLink(selected)}>{copied ? "Copied!" : "Copy link"}</Button>
             {(selected.status === "scheduled" || selected.status === "in_progress") && (
               <>
                 <Button variant="ghost" onClick={() => act("resend", selected)}>Resend</Button>
