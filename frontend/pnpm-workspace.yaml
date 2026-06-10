@@ -1,0 +1,7 @@
+# pnpm 11 settings (no longer read from package.json's "pnpm" field).
+# Allow sharp's native install (Next.js image optimization).
+allowBuilds:
+  sharp: true
+# We intentionally track the latest Next/React, so disable pnpm 11's
+# "package published too recently" supply-chain gate.
+minimumReleaseAge: 0

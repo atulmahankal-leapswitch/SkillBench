@@ -26,9 +26,11 @@ documentation index.
 
 ## Hard rules (this machine)
 
-- **No local package managers when Docker is used.** Run `uv`, `npm`, `pip`,
+- **No local package managers when Docker is used.** Run `uv`, `pnpm`, `pip`,
   etc. inside the relevant container: `docker compose exec backend uv ...`,
-  `docker compose exec frontend npm ...`.
+  `docker compose exec frontend pnpm ...`.
+- **Frontend uses pnpm** (via Corepack), not npm/yarn. Use `pnpm add`,
+  `pnpm install`, `pnpm dev/build`. The lockfile is `pnpm-lock.yaml`.
 - **No PHP** here — irrelevant to this project, listed only for completeness.
 - Ports are never hardcoded in compose files — always `${VAR:-default}`.
 

@@ -44,6 +44,7 @@ All host ports are `${VAR:-default}` so multiple projects coexist on one host.
 
 ## Local development
 
-- Package managers run **inside containers** (no local `uv`/`npm` on this host).
+- Package managers run **inside containers** (no local `uv`/`pnpm` on this host).
+  Frontend uses **pnpm** (Corepack); backend uses **uv**.
 - `compose.dev.yml` bind-mounts source and enables hot reload for both tiers.
 - `./setup.sh dev` builds and starts everything.
