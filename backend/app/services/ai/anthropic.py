@@ -4,7 +4,6 @@ from typing import Any
 
 import httpx
 
-from app.core.config import settings
 from app.services.ai.base import AIDisabled, AIProvider, extract_json
 from app.services.ai.prompts import (
     GENERATE_SYSTEM,
@@ -20,18 +19,20 @@ API_VERSION = "2023-06-01"
 class AnthropicProvider(AIProvider):
     name = "anthropic"
 
-    def __init__(self) -> None:
-        if not settings.anthropic_api_key:
-            raise AIDisabled("ANTHROPIC_API_KEY is not set")
+    def __init__(self, model: str, api_key: str) -> None:
+        if not api_key:
+            raise AIDisabled("Anthropic API key is not set")
+        self.model = model
+        self.api_key = api_key
 
     async def _complete(self, system: str, prompt: str, max_tokens: int = 1500) -> str:
         headers = {
-            "x-api-key": settings.anthropic_api_key,
+            "x-api-key": self.api_key,
             "anthropic-version": API_VERSION,
             "content-type": "application/json",
         }
         body = {
-            "model": settings.ai_model,
+            "model": self.model,
             "max_tokens": max_tokens,
             "system": system,
             "messages": [{"role": "user", "content": prompt}],

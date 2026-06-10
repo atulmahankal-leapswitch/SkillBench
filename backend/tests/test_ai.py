@@ -31,8 +31,19 @@ async def test_stub_scores_text():
     assert "rationale" in res
 
 
-def test_unknown_provider_disabled(monkeypatch):
-    monkeypatch.setattr(ai.settings, "ai_provider", "")
-    assert ai.is_enabled() is False
+def test_unknown_provider_disabled():
+    cfg = ai.AIConfig(provider="", model="", api_key="")
+    assert ai.is_enabled(cfg) is False
     with pytest.raises(ai.AIDisabled):
-        ai.get_provider()
+        ai.get_provider(cfg)
+
+
+def test_stub_provider_enabled():
+    cfg = ai.AIConfig(provider="stub", model="", api_key="")
+    assert ai.is_enabled(cfg) is True
+
+
+def test_anthropic_requires_key():
+    cfg = ai.AIConfig(provider="anthropic", model="claude-x", api_key="")
+    # No org key and (in tests) no env key -> disabled.
+    assert ai.is_enabled(cfg) is False

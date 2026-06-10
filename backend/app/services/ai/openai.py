@@ -4,7 +4,6 @@ from typing import Any
 
 import httpx
 
-from app.core.config import settings
 from app.services.ai.base import AIDisabled, AIProvider, extract_json
 from app.services.ai.prompts import (
     GENERATE_SYSTEM,
@@ -19,14 +18,16 @@ API_URL = "https://api.openai.com/v1/chat/completions"
 class OpenAIProvider(AIProvider):
     name = "openai"
 
-    def __init__(self) -> None:
-        if not settings.openai_api_key:
-            raise AIDisabled("OPENAI_API_KEY is not set")
+    def __init__(self, model: str, api_key: str) -> None:
+        if not api_key:
+            raise AIDisabled("OpenAI API key is not set")
+        self.model = model
+        self.api_key = api_key
 
     async def _complete(self, system: str, prompt: str) -> str:
-        headers = {"Authorization": f"Bearer {settings.openai_api_key}"}
+        headers = {"Authorization": f"Bearer {self.api_key}"}
         body = {
-            "model": settings.ai_model,
+            "model": self.model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},

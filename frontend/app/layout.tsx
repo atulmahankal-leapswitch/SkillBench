@@ -4,7 +4,8 @@ import "./globals.css";
 const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SkillBench";
 
 export const metadata: Metadata = {
-  title: appName,
+  // Pages set their own title; it renders as "<page>:<app>".
+  title: { default: appName, template: `%s:${appName}` },
   description: "Assessment platform for hiring and internal evaluation.",
 };
 

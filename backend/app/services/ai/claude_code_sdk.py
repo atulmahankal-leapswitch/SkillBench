@@ -18,7 +18,8 @@ from app.services.ai.prompts import (
 class ClaudeCodeSDKProvider(AIProvider):
     name = "claude_code_sdk"
 
-    def __init__(self) -> None:
+    def __init__(self, model: str = "") -> None:
+        self.model = model
         try:
             import claude_agent_sdk  # noqa: F401
         except ImportError as exc:  # pragma: no cover - optional dep

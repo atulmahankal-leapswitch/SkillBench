@@ -28,6 +28,11 @@ class Organization(Base, TimestampMixin):
     logo_url: Mapped[str] = mapped_column(String(1024), default="", nullable=False)
     brand_color: Mapped[str] = mapped_column(String(20), default="", nullable=False)
 
+    # AI provider configuration (overrides env defaults when set).
+    ai_provider: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    ai_model: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    ai_api_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+
     users: Mapped[list["User"]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"
     )

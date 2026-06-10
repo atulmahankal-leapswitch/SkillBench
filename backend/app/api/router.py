@@ -15,6 +15,7 @@ from app.api.routes import (
     questions,
     results,
     schedules,
+    settings,
     tests,
     users,
 )
@@ -35,3 +36,4 @@ api_router.include_router(public_api.router)
 api_router.include_router(analytics.router)
 api_router.include_router(branding.router)
 api_router.include_router(users.router)
+api_router.include_router(settings.router)

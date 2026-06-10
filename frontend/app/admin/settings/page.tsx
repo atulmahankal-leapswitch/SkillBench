@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/client";
-import { Badge, Button, ErrorText, inputStyle, PageHeader, td, th } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ErrorText,
+  Field,
+  inputStyle,
+  PageHeader,
+  td,
+  th,
+} from "@/components/ui";
 
 type ApiKey = {
   id: string;
@@ -13,34 +22,69 @@ type ApiKey = {
   revoked_at: string | null;
 };
 type Webhook = { id: string; url: string; events: string[]; active: boolean };
+type AISettings = {
+  provider: string;
+  model: string;
+  api_key_set: boolean;
+  available_providers: string[];
+};
 
 const SCOPES = ["candidate:read", "result:read"];
 const EVENTS = ["attempt.submitted", "result.ready"];
+const TABS = ["Branding", "AI Provider", "API Keys", "Webhooks"] as const;
+type Tab = (typeof TABS)[number];
+
+const PROVIDER_LABELS: Record<string, string> = {
+  "": "Disabled",
+  anthropic: "Anthropic (Claude API)",
+  claude_code_sdk: "Claude Code SDK",
+  openai: "OpenAI",
+  stub: "Stub (testing only)",
+};
 
 export default function SettingsPage() {
+  const [tab, setTab] = useState<Tab>("Branding");
+  const [error, setError] = useState<string | null>(null);
+
+  // Branding
+  const [brand, setBrand] = useState({ display_name: "", logo_url: "", brand_color: "" });
+  const [brandSaved, setBrandSaved] = useState(false);
+
+  // AI
+  const [ai, setAi] = useState<AISettings>({
+    provider: "",
+    model: "",
+    api_key_set: false,
+    available_providers: [],
+  });
+  const [aiKey, setAiKey] = useState("");
+  const [aiSaved, setAiSaved] = useState(false);
+
+  // Keys + webhooks
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [hooks, setHooks] = useState<Webhook[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [newKeyName, setNewKeyName] = useState("");
   const [newKeyScopes, setNewKeyScopes] = useState<string[]>([]);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [hookUrl, setHookUrl] = useState("");
   const [hookEvents, setHookEvents] = useState<string[]>([]);
-  const [brand, setBrand] = useState({
-    display_name: "",
-    logo_url: "",
-    brand_color: "",
-  });
-  const [brandSaved, setBrandSaved] = useState(false);
 
   async function load() {
     try {
+      setBrand(await api.get("/branding"));
+      setAi(await api.get<AISettings>("/settings/ai"));
       setKeys(await api.get<ApiKey[]>("/integrations/api-keys"));
       setHooks(await api.get<Webhook[]>("/integrations/webhooks"));
-      setBrand(await api.get("/branding"));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load");
     }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  function toggle(list: string[], v: string, set: (l: string[]) => void) {
+    set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   }
 
   async function saveBrand() {
@@ -53,12 +97,20 @@ export default function SettingsPage() {
       setError(e instanceof ApiError ? e.message : "Save failed");
     }
   }
-  useEffect(() => {
-    load();
-  }, []);
 
-  function toggle(list: string[], v: string, set: (l: string[]) => void) {
-    set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  async function saveAi(clearKey = false) {
+    setError(null);
+    try {
+      const body: Record<string, unknown> = { provider: ai.provider, model: ai.model };
+      if (clearKey) body.api_key = "__clear__";
+      else if (aiKey) body.api_key = aiKey;
+      setAi(await api.put<AISettings>("/settings/ai", body));
+      setAiKey("");
+      setAiSaved(true);
+      setTimeout(() => setAiSaved(false), 2000);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Save failed");
+    }
   }
 
   async function createKey() {
@@ -76,13 +128,11 @@ export default function SettingsPage() {
       setError(e instanceof ApiError ? e.message : "Create failed");
     }
   }
-
   async function revokeKey(id: string) {
     if (!confirm("Revoke this API key?")) return;
     await api.del(`/integrations/api-keys/${id}`);
     await load();
   }
-
   async function createHook() {
     setError(null);
     try {
@@ -94,7 +144,6 @@ export default function SettingsPage() {
       setError(e instanceof ApiError ? e.message : "Create failed");
     }
   }
-
   async function deleteHook(id: string) {
     if (!confirm("Delete this webhook?")) return;
     await api.del(`/integrations/webhooks/${id}`);
@@ -103,162 +152,237 @@ export default function SettingsPage() {
 
   return (
     <main>
-      <PageHeader title="Settings — Integrations" />
+      <PageHeader title="Settings" />
+
+      <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", marginBottom: 20 }}>
+        {TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            style={{
+              background: "transparent",
+              border: "none",
+              borderBottom: tab === t ? "2px solid var(--accent)" : "2px solid transparent",
+              color: tab === t ? "var(--fg)" : "var(--muted)",
+              padding: "10px 14px",
+              cursor: "pointer",
+              fontSize: 14,
+              fontWeight: tab === t ? 600 : 400,
+            }}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
       <ErrorText message={error} />
 
-      {createdKey && (
-        <div
-          style={{
-            background: "#13261a",
-            border: "1px solid #2b6b3b",
-            borderRadius: 8,
-            padding: 12,
-            marginBottom: 16,
-          }}
-        >
-          New API key (copy now — shown once):
-          <pre style={{ whiteSpace: "pre-wrap" }}>{createdKey}</pre>
-          <Button variant="ghost" onClick={() => setCreatedKey(null)}>
-            Dismiss
-          </Button>
-        </div>
+      {tab === "Branding" && (
+        <section style={{ maxWidth: 560 }}>
+          <Field label="Display name">
+            <input
+              style={inputStyle}
+              value={brand.display_name}
+              onChange={(e) => setBrand({ ...brand, display_name: e.target.value })}
+            />
+          </Field>
+          <Field label="Logo URL">
+            <input
+              style={inputStyle}
+              value={brand.logo_url}
+              onChange={(e) => setBrand({ ...brand, logo_url: e.target.value })}
+            />
+          </Field>
+          <Field label="Brand colour (hex)">
+            <input
+              style={{ ...inputStyle, maxWidth: 160 }}
+              placeholder="#4f8cff"
+              value={brand.brand_color}
+              onChange={(e) => setBrand({ ...brand, brand_color: e.target.value })}
+            />
+          </Field>
+          <Button onClick={saveBrand}>Save branding</Button>
+          {brandSaved && <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>}
+        </section>
       )}
 
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: 18 }}>Branding (candidate experience)</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input
-            style={{ ...inputStyle, maxWidth: 200 }}
-            placeholder="Display name"
-            value={brand.display_name}
-            onChange={(e) => setBrand({ ...brand, display_name: e.target.value })}
-          />
-          <input
-            style={{ ...inputStyle, maxWidth: 280 }}
-            placeholder="Logo URL"
-            value={brand.logo_url}
-            onChange={(e) => setBrand({ ...brand, logo_url: e.target.value })}
-          />
-          <input
-            style={{ ...inputStyle, maxWidth: 120 }}
-            placeholder="#4f8cff"
-            value={brand.brand_color}
-            onChange={(e) => setBrand({ ...brand, brand_color: e.target.value })}
-          />
-          <Button onClick={saveBrand}>Save branding</Button>
-          {brandSaved && <span style={{ color: "#7ee787" }}>Saved</span>}
-        </div>
-      </section>
+      {tab === "AI Provider" && (
+        <section style={{ maxWidth: 560 }}>
+          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 0 }}>
+            Powers question generation and free-text scoring. Leave the key blank
+            to keep the current one; Claude Code SDK and Stub need no key.
+          </p>
+          <Field label="Provider">
+            <select
+              style={inputStyle}
+              value={ai.provider}
+              onChange={(e) => setAi({ ...ai, provider: e.target.value })}
+            >
+              <option value="">Disabled</option>
+              {ai.available_providers.map((p) => (
+                <option key={p} value={p}>
+                  {PROVIDER_LABELS[p] ?? p}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Model">
+            <input
+              style={inputStyle}
+              placeholder="claude-opus-4-8"
+              value={ai.model}
+              onChange={(e) => setAi({ ...ai, model: e.target.value })}
+            />
+          </Field>
+          <Field label={`API key ${ai.api_key_set ? "(set — leave blank to keep)" : "(not set)"}`}>
+            <input
+              type="password"
+              style={inputStyle}
+              placeholder={ai.api_key_set ? "••••••••" : "sk-..."}
+              value={aiKey}
+              onChange={(e) => setAiKey(e.target.value)}
+            />
+          </Field>
+          <Button onClick={() => saveAi(false)}>Save AI settings</Button>
+          {ai.api_key_set && (
+            <span style={{ marginLeft: 8 }}>
+              <Button variant="danger" onClick={() => saveAi(true)}>
+                Clear key
+              </Button>
+            </span>
+          )}
+          {aiSaved && <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>}
+        </section>
+      )}
 
-      <section style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: 18 }}>API keys</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-          <input
-            style={{ ...inputStyle, maxWidth: 200 }}
-            placeholder="Key name"
-            value={newKeyName}
-            onChange={(e) => setNewKeyName(e.target.value)}
-          />
-          {SCOPES.map((s) => (
-            <label key={s} style={{ fontSize: 13, color: "var(--muted)" }}>
-              <input
-                type="checkbox"
-                checked={newKeyScopes.includes(s)}
-                onChange={() => toggle(newKeyScopes, s, setNewKeyScopes)}
-              />{" "}
-              {s}
-            </label>
-          ))}
-          <Button onClick={createKey} disabled={!newKeyName}>
-            Create key
-          </Button>
-        </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Name</th>
-              <th style={th}>Prefix</th>
-              <th style={th}>Scopes</th>
-              <th style={th}>State</th>
-              <th style={th}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {keys.map((k) => (
-              <tr key={k.id}>
-                <td style={td}>{k.name}</td>
-                <td style={td}>
-                  <code>{k.prefix}…</code>
-                </td>
-                <td style={td}>
-                  {k.scopes.map((s) => (
-                    <Badge key={s}>{s}</Badge>
-                  ))}
-                </td>
-                <td style={td}>{k.revoked_at ? "revoked" : "active"}</td>
-                <td style={{ ...td, textAlign: "right" }}>
-                  {!k.revoked_at && (
-                    <Button variant="danger" onClick={() => revokeKey(k.id)}>
-                      Revoke
+      {tab === "API Keys" && (
+        <section>
+          {createdKey && (
+            <div
+              style={{
+                background: "#13261a",
+                border: "1px solid #2b6b3b",
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+              }}
+            >
+              New API key (copy now — shown once):
+              <pre style={{ whiteSpace: "pre-wrap" }}>{createdKey}</pre>
+              <Button variant="ghost" onClick={() => setCreatedKey(null)}>
+                Dismiss
+              </Button>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+            <input
+              style={{ ...inputStyle, maxWidth: 200 }}
+              placeholder="Key name"
+              value={newKeyName}
+              onChange={(e) => setNewKeyName(e.target.value)}
+            />
+            {SCOPES.map((s) => (
+              <label key={s} style={{ fontSize: 13, color: "var(--muted)" }}>
+                <input
+                  type="checkbox"
+                  checked={newKeyScopes.includes(s)}
+                  onChange={() => toggle(newKeyScopes, s, setNewKeyScopes)}
+                />{" "}
+                {s}
+              </label>
+            ))}
+            <Button onClick={createKey} disabled={!newKeyName}>
+              Create key
+            </Button>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Name</th>
+                <th style={th}>Prefix</th>
+                <th style={th}>Scopes</th>
+                <th style={th}>State</th>
+                <th style={th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map((k) => (
+                <tr key={k.id}>
+                  <td style={td}>{k.name}</td>
+                  <td style={td}>
+                    <code>{k.prefix}…</code>
+                  </td>
+                  <td style={td}>
+                    {k.scopes.map((s) => (
+                      <Badge key={s}>{s}</Badge>
+                    ))}
+                  </td>
+                  <td style={td}>{k.revoked_at ? "revoked" : "active"}</td>
+                  <td style={{ ...td, textAlign: "right" }}>
+                    {!k.revoked_at && (
+                      <Button variant="danger" onClick={() => revokeKey(k.id)}>
+                        Revoke
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {tab === "Webhooks" && (
+        <section>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+            <input
+              style={{ ...inputStyle, maxWidth: 280 }}
+              placeholder="https://your-endpoint"
+              value={hookUrl}
+              onChange={(e) => setHookUrl(e.target.value)}
+            />
+            {EVENTS.map((ev) => (
+              <label key={ev} style={{ fontSize: 13, color: "var(--muted)" }}>
+                <input
+                  type="checkbox"
+                  checked={hookEvents.includes(ev)}
+                  onChange={() => toggle(hookEvents, ev, setHookEvents)}
+                />{" "}
+                {ev}
+              </label>
+            ))}
+            <Button onClick={createHook} disabled={!hookUrl || !hookEvents.length}>
+              Add webhook
+            </Button>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>URL</th>
+                <th style={th}>Events</th>
+                <th style={th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {hooks.map((h) => (
+                <tr key={h.id}>
+                  <td style={td}>{h.url}</td>
+                  <td style={td}>
+                    {h.events.map((e) => (
+                      <Badge key={e}>{e}</Badge>
+                    ))}
+                  </td>
+                  <td style={{ ...td, textAlign: "right" }}>
+                    <Button variant="danger" onClick={() => deleteHook(h.id)}>
+                      Delete
                     </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section>
-        <h2 style={{ fontSize: 18 }}>Webhooks</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-          <input
-            style={{ ...inputStyle, maxWidth: 280 }}
-            placeholder="https://your-endpoint"
-            value={hookUrl}
-            onChange={(e) => setHookUrl(e.target.value)}
-          />
-          {EVENTS.map((ev) => (
-            <label key={ev} style={{ fontSize: 13, color: "var(--muted)" }}>
-              <input
-                type="checkbox"
-                checked={hookEvents.includes(ev)}
-                onChange={() => toggle(hookEvents, ev, setHookEvents)}
-              />{" "}
-              {ev}
-            </label>
-          ))}
-          <Button onClick={createHook} disabled={!hookUrl || !hookEvents.length}>
-            Add webhook
-          </Button>
-        </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>URL</th>
-              <th style={th}>Events</th>
-              <th style={th}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {hooks.map((h) => (
-              <tr key={h.id}>
-                <td style={td}>{h.url}</td>
-                <td style={td}>
-                  {h.events.map((e) => (
-                    <Badge key={e}>{e}</Badge>
-                  ))}
-                </td>
-                <td style={{ ...td, textAlign: "right" }}>
-                  <Button variant="danger" onClick={() => deleteHook(h.id)}>
-                    Delete
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </main>
   );
 }

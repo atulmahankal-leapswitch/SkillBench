@@ -1,3 +1,7 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Home" };
+
 const apiBase =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 

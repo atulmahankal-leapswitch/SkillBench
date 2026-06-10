@@ -75,6 +75,9 @@ export default function ExamPage({
     setState(s);
     setAnswers(s.answers || {});
     setRemaining(s.remaining_seconds);
+    const app =
+      process.env.NEXT_PUBLIC_APP_NAME ?? s.branding?.display_name ?? "SkillBench";
+    document.title = `${s.test_title}:${app}`;
   }, []);
 
   useEffect(() => {

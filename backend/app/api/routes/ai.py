@@ -17,9 +17,9 @@ from app.services import ai
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
-def _provider():
+def _provider(user: User):
     try:
-        return ai.get_provider()
+        return ai.get_provider(ai.resolve(user.organization))
     except ai.AIDisabled as exc:
         raise HTTPException(http.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
 
@@ -29,7 +29,7 @@ async def generate_questions(
     data: GenerateQuestionsRequest,
     user: User = Depends(require_permission("question:write")),
 ) -> GenerateQuestionsResponse:
-    provider = _provider()
+    provider = _provider(user)
     try:
         raw = await provider.generate_questions(data.model_dump())
     except Exception as exc:  # noqa: BLE001 - surface a clean 502 on AI failure
@@ -45,7 +45,7 @@ async def score_text(
     data: ScoreTextRequest,
     user: User = Depends(require_permission("result:write")),
 ) -> ScoreTextResponse:
-    provider = _provider()
+    provider = _provider(user)
     try:
         result = await provider.score_text(data.model_dump())
     except Exception as exc:  # noqa: BLE001

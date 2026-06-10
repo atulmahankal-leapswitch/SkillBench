@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import ProfileMenu from "./ProfileMenu";
 import ThemeToggle from "./ThemeToggle";
+
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "SkillBench";
 
 const TITLES: Record<string, string> = {
   "/admin": "Dashboard",
@@ -32,6 +35,10 @@ export default function TopBar({
       .filter(([p]) => pathname.startsWith(p) && p !== "/admin")
       .sort((a, b) => b[0].length - a[0].length)[0]?.[1] ??
     "Admin";
+
+  useEffect(() => {
+    document.title = `${title}:${APP_NAME}`;
+  }, [title]);
 
   return (
     <header

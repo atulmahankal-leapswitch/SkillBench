@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.attempt import Attempt
 from app.models.enums import QuestionType
+from app.models.organization import Organization
 from app.models.question import Question
 from app.models.result import QuestionResult, Result
 from app.models.test import Test
@@ -63,17 +64,19 @@ async def grade_coding(
         )
 
 
-async def grade_text(q: Question, response: dict, max_pts: float) -> QuestionResult:
+async def grade_text(
+    q: Question, response: dict, max_pts: float, cfg: ai.AIConfig
+) -> QuestionResult:
     """AI-score a free-text answer when a provider is enabled, else flag review."""
     answer = (response or {}).get("text", "")
-    if not ai.is_enabled() or not answer:
+    if not ai.is_enabled(cfg) or not answer:
         return QuestionResult(
             question_id=q.id, points_awarded=0, max_points=max_pts,
             is_correct=None, needs_review=True,
         )
     try:
         payload = q.payload or {}
-        result = await ai.get_provider().score_text({
+        result = await ai.get_provider(cfg).score_text({
             "prompt": q.prompt,
             "answer": answer,
             "rubric": payload.get("rubric", ""),
@@ -108,6 +111,12 @@ async def grade_attempt(db: AsyncSession, attempt: Attempt) -> Result:
     test = (
         await db.execute(select(Test).where(Test.id == attempt.schedule.test_id))
     ).unique().scalar_one()
+    org = (
+        await db.execute(
+            select(Organization).where(Organization.id == attempt.organization_id)
+        )
+    ).scalar_one()
+    ai_cfg = ai.resolve(org)
 
     responses = {a.question_id: a.response for a in attempt.answers}
 
@@ -142,7 +151,7 @@ async def grade_attempt(db: AsyncSession, attempt: Attempt) -> Result:
             result.questions.append(await grade_coding(q, resp, max_pts))
         else:
             # text: AI-suggested score when enabled, else manual review.
-            result.questions.append(await grade_text(q, resp, max_pts))
+            result.questions.append(await grade_text(q, resp, max_pts, ai_cfg))
 
     recompute_aggregate(result, test.pass_mark)
     result.graded_at = datetime.now(UTC)

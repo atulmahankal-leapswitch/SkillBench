@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { browserApiBase } from "@/lib/api";
 import PasswordForm from "./password-form";
+
+export const metadata: Metadata = { title: "Sign in" };
 
 const ERRORS: Record<string, string> = {
   domain_not_allowed:
