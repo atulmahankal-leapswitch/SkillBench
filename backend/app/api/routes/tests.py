@@ -17,7 +17,12 @@ router = APIRouter(prefix="/tests", tags=["tests"])
 
 def _to_summary(test) -> TestSummaryOut:
     summary = TestSummaryOut.model_validate(test)
-    summary.question_count = len(test.questions)
+    # Blueprint tests draw N per rule; otherwise it's the fixed question count.
+    summary.question_count = (
+        sum(b.count for b in test.blueprints)
+        if test.blueprints
+        else len(test.questions)
+    )
     return summary
 
 

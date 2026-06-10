@@ -64,17 +64,33 @@ export type Candidate = {
 };
 
 export type QuestionType = "mcq" | "multi_select" | "text" | "coding";
+export type Difficulty = "easy" | "medium" | "hard";
+
+export type Category = {
+  id: string;
+  name: string;
+  description: string;
+  counts: { easy: number; medium: number; hard: number; total: number };
+};
 
 export type Question = {
   id: string;
   type: QuestionType;
   prompt: string;
   payload: Record<string, unknown>;
-  difficulty: "easy" | "medium" | "hard";
+  difficulty: Difficulty;
   points: number;
   tags: string[];
+  categories: { id: string; name: string }[];
   created_at: string;
   updated_at: string;
+};
+
+export type BlueprintRow = {
+  category_id: string;
+  category_name: string;
+  difficulty: Difficulty;
+  count: number;
 };
 
 export type TestSummary = {
@@ -99,6 +115,7 @@ export type TestQuestion = {
 export type Test = Omit<TestSummary, "question_count"> & {
   settings: Record<string, unknown>;
   questions: TestQuestion[];
+  blueprint: BlueprintRow[];
 };
 
 export type ResultSummary = {

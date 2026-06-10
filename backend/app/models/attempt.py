@@ -4,13 +4,21 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, uuid_pk
 from app.models.enums import AttemptStatus
+from app.models.question import Question
 
 if TYPE_CHECKING:
     from app.models.schedule import Schedule
@@ -51,6 +59,37 @@ class Attempt(Base, TimestampMixin):
     answers: Mapped[list["Answer"]] = relationship(
         back_populates="attempt", cascade="all, delete-orphan", lazy="selectin"
     )
+    # The questions actually presented to this candidate (frozen at start;
+    # randomly selected for blueprint-based tests).
+    questions: Mapped[list["AttemptQuestion"]] = relationship(
+        back_populates="attempt",
+        cascade="all, delete-orphan",
+        order_by="AttemptQuestion.position",
+        lazy="selectin",
+    )
+
+
+class AttemptQuestion(Base):
+    __tablename__ = "attempt_questions"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "question_id", name="uq_attempt_question_sel"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    attempt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("attempts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    question_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("questions.id", ondelete="CASCADE"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    points: Mapped[float] = mapped_column(Numeric(6, 2), default=1, nullable=False)
+
+    attempt: Mapped["Attempt"] = relationship(back_populates="questions")
+    question: Mapped[Question] = relationship(lazy="joined")
 
 
 class Answer(Base, TimestampMixin):

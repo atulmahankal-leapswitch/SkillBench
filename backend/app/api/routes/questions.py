@@ -23,12 +23,13 @@ async def list_questions(
     type_: str | None = Query(default=None, alias="type"),
     difficulty: str | None = None,
     tag: str | None = None,
+    category_id: uuid.UUID | None = None,
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> Page[QuestionOut]:
     items, total = await svc.list_questions(
         db, user, q=q, type_=type_, difficulty=difficulty, tag=tag,
-        limit=limit, offset=offset,
+        category_id=category_id, limit=limit, offset=offset,
     )
     return Page(items=items, total=total, limit=limit, offset=offset)
 

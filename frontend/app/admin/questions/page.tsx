@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, ApiError, Page, Question, QuestionType } from "@/lib/client";
+import {
+  api,
+  ApiError,
+  Category,
+  Page,
+  Question,
+  QuestionType,
+} from "@/lib/client";
 import {
   Badge,
   Button,
@@ -23,6 +30,7 @@ type FormState = {
   difficulty: "easy" | "medium" | "hard";
   points: number;
   tags: string;
+  category_ids: string[];
   options: Option[];
   correct_keys: string[];
   sample_answer: string;
@@ -37,6 +45,7 @@ const EMPTY: FormState = {
   difficulty: "medium",
   points: 1,
   tags: "",
+  category_ids: [],
   options: [
     { key: "a", text: "" },
     { key: "b", text: "" },
@@ -71,6 +80,14 @@ export default function QuestionsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    api
+      .get<Category[]>("/categories")
+      .then(setCategories)
+      .catch(() => {});
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -107,6 +124,7 @@ export default function QuestionsPage() {
       difficulty: qn.difficulty,
       points: qn.points,
       tags: qn.tags.join(", "),
+      category_ids: qn.categories.map((c) => c.id),
       options: (p.options as Option[]) ?? EMPTY.options,
       correct_keys: (p.correct_keys as string[]) ?? [],
       sample_answer: (p.sample_answer as string) ?? "",
@@ -129,6 +147,7 @@ export default function QuestionsPage() {
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean),
+      category_ids: form.category_ids,
       payload: buildPayload(form),
     };
     try {
@@ -525,6 +544,35 @@ export default function QuestionsPage() {
               </Field>
             </>
           )}
+
+          <Field label="Categories">
+            {categories.length === 0 ? (
+              <span style={{ color: "var(--muted)", fontSize: 13 }}>
+                No categories yet — add some under Categories.
+              </span>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                {categories.map((c) => (
+                  <label key={c.id} style={{ fontSize: 13, color: "var(--muted)" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.category_ids.includes(c.id)}
+                      onChange={() => {
+                        const has = form.category_ids.includes(c.id);
+                        setForm({
+                          ...form,
+                          category_ids: has
+                            ? form.category_ids.filter((x) => x !== c.id)
+                            : [...form.category_ids, c.id],
+                        });
+                      }}
+                    />{" "}
+                    {c.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </Field>
 
           <Field label="Tags (comma-separated)">
             <input

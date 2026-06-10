@@ -14,10 +14,6 @@ from app.models.test import Test
 from app.services import ai, judge0
 
 
-def _effective_points(tq) -> float:
-    return float(tq.weight) if tq.weight is not None else float(tq.question.points)
-
-
 def _grade_objective(qtype: QuestionType, payload: dict, response: dict) -> bool:
     """Return correctness for objective question types."""
     correct = set(payload.get("correct_keys", []))
@@ -131,10 +127,10 @@ async def grade_attempt(db: AsyncSession, attempt: Attempt) -> Result:
     else:
         result.questions.clear()
 
-    for tq in test.questions:
-        q = tq.question
+    for aq in attempt.questions:
+        q = aq.question
         qtype = QuestionType(q.type)
-        max_pts = _effective_points(tq)
+        max_pts = float(aq.points)
         resp = responses.get(q.id, {})
         if qtype in (QuestionType.MCQ, QuestionType.MULTI_SELECT):
             correct = _grade_objective(qtype, q.payload or {}, resp)

@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
@@ -19,6 +20,9 @@ from app.core.database import Base
 from app.models.base import TimestampMixin, uuid_pk
 from app.models.enums import TestStatus
 from app.models.question import Question
+
+if TYPE_CHECKING:
+    from app.models.category import Category
 
 
 class TestQuestion(Base):
@@ -46,6 +50,38 @@ class TestQuestion(Base):
     weight: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
 
     question: Mapped[Question] = relationship(lazy="joined")
+
+
+class TestBlueprint(Base):
+    """A category × difficulty rule: draw `count` random questions at exam time."""
+
+    __tablename__ = "test_blueprints"
+    __table_args__ = (
+        UniqueConstraint(
+            "test_id", "category_id", "difficulty", name="uq_blueprint_cat_diff"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    test_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tests.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("categories.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    difficulty: Mapped[str] = mapped_column(String(10), nullable=False)
+    count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    category: Mapped["Category"] = relationship(lazy="joined")
+
+    @property
+    def category_name(self) -> str:
+        return self.category.name if self.category else ""
 
 
 class Test(Base, TimestampMixin):
@@ -87,3 +123,11 @@ class Test(Base, TimestampMixin):
         order_by="TestQuestion.position",
         lazy="selectin",
     )
+    blueprints: Mapped[list[TestBlueprint]] = relationship(
+        cascade="all, delete-orphan", lazy="selectin"
+    )
+
+    # Alias so the `blueprint` response field maps from `blueprints`.
+    @property
+    def blueprint(self) -> list[TestBlueprint]:
+        return self.blueprints

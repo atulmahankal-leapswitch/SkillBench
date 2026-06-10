@@ -4,12 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from fastapi import status as http
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.attempt import Answer, Attempt
+from app.models.attempt import Answer, Attempt, AttemptQuestion
+from app.models.category import question_categories
 from app.models.enums import AttemptStatus, QuestionType, ScheduleStatus
 from app.models.organization import Organization
+from app.models.question import Question
 from app.models.schedule import Invitation, Schedule
 from app.models.test import Test
 from app.schemas.exam import (
@@ -62,6 +64,49 @@ async def _get_attempt(db: AsyncSession, schedule: Schedule) -> Attempt | None:
     ).scalar_one_or_none()
 
 
+async def _materialize_questions(
+    db: AsyncSession, test: Test
+) -> list[tuple[Question, float]]:
+    """Resolve the actual questions for an attempt.
+
+    Blueprint tests draw `count` random questions per (category, difficulty);
+    legacy fixed-list tests use their explicit questions. De-duplicates so a
+    question shared across categories is only asked once.
+    """
+    selected: list[tuple[Question, float]] = []
+    seen: set = set()
+    if test.blueprints:
+        for bp in test.blueprints:
+            rows = (
+                await db.execute(
+                    select(Question)
+                    .where(
+                        Question.organization_id == test.organization_id,
+                        Question.deleted_at.is_(None),
+                        Question.difficulty == bp.difficulty,
+                        Question.id.in_(
+                            select(question_categories.c.question_id).where(
+                                question_categories.c.category_id == bp.category_id
+                            )
+                        ),
+                    )
+                    .order_by(func.random())
+                    .limit(bp.count)
+                )
+            ).scalars().all()
+            for q in rows:
+                if q.id not in seen:
+                    seen.add(q.id)
+                    selected.append((q, float(q.points)))
+    else:
+        for tq in test.questions:
+            pts = float(tq.weight) if tq.weight is not None else float(tq.question.points)
+            if tq.question_id not in seen:
+                seen.add(tq.question_id)
+                selected.append((tq.question, pts))
+    return selected
+
+
 async def _enforce_expiry(db: AsyncSession, attempt: Attempt) -> None:
     now = datetime.now(UTC)
     if (
@@ -85,8 +130,10 @@ async def _build_state(
     answers: dict = {}
     started = attempt is not None and attempt.started_at is not None
     if started:
-        test = await _load_test(db, schedule)
-        questions = [build_public_question(tq) for tq in test.questions]
+        questions = [
+            build_public_question(aq.question, float(aq.points))
+            for aq in attempt.questions
+        ]
         answers = {str(a.question_id): a.response for a in attempt.answers}
 
     remaining = 0
@@ -158,6 +205,12 @@ async def start_attempt(db: AsyncSession, token: str) -> ExamState:
             started_at=now,
             expires_at=expires,
         )
+        # Freeze the question set now (random draw for blueprint tests).
+        test = await _load_test(db, schedule)
+        for pos, (q, pts) in enumerate(await _materialize_questions(db, test)):
+            attempt.questions.append(
+                AttemptQuestion(question_id=q.id, position=pos, points=pts)
+            )
         db.add(attempt)
         if schedule.status == ScheduleStatus.SCHEDULED:
             schedule.status = ScheduleStatus.IN_PROGRESS
@@ -177,10 +230,9 @@ async def save_answer(db: AsyncSession, token: str, data: AnswerSubmit) -> dict:
     if attempt.status != AttemptStatus.IN_PROGRESS:
         raise HTTPException(http.HTTP_409_CONFLICT, "Attempt is not in progress")
 
-    test = await _load_test(db, schedule)
-    valid_ids = {tq.question_id for tq in test.questions}
+    valid_ids = {aq.question_id for aq in attempt.questions}
     if data.question_id not in valid_ids:
-        raise HTTPException(http.HTTP_400_BAD_REQUEST, "Question not in this test")
+        raise HTTPException(http.HTTP_400_BAD_REQUEST, "Question not in this attempt")
 
     existing = next(
         (a for a in attempt.answers if a.question_id == data.question_id), None
@@ -209,13 +261,14 @@ async def run_code(db: AsyncSession, token: str, data: RunRequest) -> RunRespons
     if attempt.status != AttemptStatus.IN_PROGRESS:
         raise HTTPException(http.HTTP_409_CONFLICT, "Attempt is not in progress")
 
-    test = await _load_test(db, schedule)
-    tq = next((t for t in test.questions if t.question_id == data.question_id), None)
-    if tq is None or QuestionType(tq.question.type) != QuestionType.CODING:
-        raise HTTPException(http.HTTP_400_BAD_REQUEST, "Not a coding question in this test")
+    aq = next(
+        (a for a in attempt.questions if a.question_id == data.question_id), None
+    )
+    if aq is None or QuestionType(aq.question.type) != QuestionType.CODING:
+        raise HTTPException(http.HTTP_400_BAD_REQUEST, "Not a coding question in this attempt")
 
     visible = [
-        tc for tc in (tq.question.payload or {}).get("test_cases", [])
+        tc for tc in (aq.question.payload or {}).get("test_cases", [])
         if not tc.get("hidden", True)
     ]
     results = []

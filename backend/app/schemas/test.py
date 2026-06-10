@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.enums import TestStatus
+from app.models.enums import Difficulty, TestStatus
 from app.schemas.question import QuestionOut
 
 
@@ -16,6 +16,23 @@ class TestQuestionRef(BaseModel):
     question_id: uuid.UUID
     position: int = 0
     weight: float | None = Field(default=None, ge=0)
+
+
+class BlueprintItem(BaseModel):
+    """Draw `count` random questions of this category + difficulty at exam time."""
+
+    category_id: uuid.UUID
+    difficulty: Difficulty
+    count: int = Field(ge=1)
+
+
+class BlueprintOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    category_id: uuid.UUID
+    category_name: str = ""
+    difficulty: Difficulty
+    count: int
 
 
 class TestBase(BaseModel):
@@ -28,6 +45,7 @@ class TestBase(BaseModel):
 
 class TestCreate(TestBase):
     questions: list[TestQuestionRef] = Field(default_factory=list)
+    blueprint: list[BlueprintItem] = Field(default_factory=list)
 
 
 class TestUpdate(BaseModel):
@@ -39,6 +57,8 @@ class TestUpdate(BaseModel):
     settings: dict[str, Any] | None = None
     # When provided, replaces the entire question set.
     questions: list[TestQuestionRef] | None = None
+    # When provided, replaces the entire blueprint.
+    blueprint: list[BlueprintItem] | None = None
 
 
 class TestQuestionOut(BaseModel):
@@ -66,6 +86,7 @@ class TestOut(BaseModel):
     status: TestStatus
     settings: dict[str, Any]
     questions: list[TestQuestionOut]
+    blueprint: list[BlueprintOut] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

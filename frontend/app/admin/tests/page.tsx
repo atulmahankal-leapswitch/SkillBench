@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import {
   api,
   ApiError,
+  Category,
   Page,
-  Question,
   Test,
   TestSummary,
 } from "@/lib/client";
@@ -21,7 +21,8 @@ import {
   th,
 } from "@/components/ui";
 
-type Picked = { question_id: string; prompt: string; weight: string };
+type Difficulty = "easy" | "medium" | "hard";
+const DIFFS: Difficulty[] = ["easy", "medium", "hard"];
 
 type Proctoring = {
   webcam: boolean;
@@ -30,75 +31,82 @@ type Proctoring = {
   block_copy_paste: boolean;
 };
 
+// blueprint[categoryId][difficulty] = count (string for the input)
+type Blueprint = Record<string, Record<Difficulty, string>>;
+
 type FormState = {
   title: string;
   description: string;
   duration_minutes: number;
   pass_mark: number;
   status: "draft" | "active" | "archived";
-  picked: Picked[];
   proctoring: Proctoring;
+  blueprint: Blueprint;
 };
 
-const EMPTY: FormState = {
-  title: "",
-  description: "",
-  duration_minutes: 60,
-  pass_mark: 60,
-  status: "draft",
-  picked: [],
-  proctoring: {
-    webcam: false,
-    tab_switch: false,
-    fullscreen: false,
-    block_copy_paste: false,
-  },
+const EMPTY_PROCTORING: Proctoring = {
+  webcam: false,
+  tab_switch: false,
+  fullscreen: false,
+  block_copy_paste: false,
 };
+
+function emptyForm(): FormState {
+  return {
+    title: "",
+    description: "",
+    duration_minutes: 60,
+    pass_mark: 60,
+    status: "draft",
+    proctoring: { ...EMPTY_PROCTORING },
+    blueprint: {},
+  };
+}
 
 export default function TestsPage() {
   const [items, setItems] = useState<TestSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<TestSummary | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<FormState>(EMPTY);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [toAdd, setToAdd] = useState("");
+  const [form, setForm] = useState<FormState>(emptyForm());
+  const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const data = await api.get<Page<TestSummary>>(`/tests`);
-      setItems(data.items);
+      setItems((await api.get<Page<TestSummary>>(`/tests`)).items);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load");
     } finally {
       setLoading(false);
     }
   }
-
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadQuestions() {
-    const data = await api.get<Page<Question>>(`/questions?limit=100`);
-    setQuestions(data.items);
+  async function loadCategories() {
+    setCategories(await api.get<Category[]>("/categories"));
   }
 
   async function openCreate() {
-    setEditing(null);
-    setForm(EMPTY);
     setError(null);
-    await loadQuestions();
+    await loadCategories();
+    setEditing(null);
+    setForm(emptyForm());
     setShowForm(true);
   }
 
   async function openEdit(t: TestSummary) {
     setError(null);
-    await loadQuestions();
+    await loadCategories();
     const full = await api.get<Test>(`/tests/${t.id}`);
+    const bp: Blueprint = {};
+    for (const row of full.blueprint) {
+      bp[row.category_id] = bp[row.category_id] ?? { easy: "", medium: "", hard: "" };
+      bp[row.category_id][row.difficulty] = String(row.count);
+    }
     setEditing(t);
     setForm({
       title: full.title,
@@ -106,63 +114,51 @@ export default function TestsPage() {
       duration_minutes: full.duration_minutes,
       pass_mark: full.pass_mark,
       status: full.status,
-      picked: full.questions.map((tq) => ({
-        question_id: tq.question.id,
-        prompt: tq.question.prompt,
-        weight: tq.weight == null ? "" : String(tq.weight),
-      })),
       proctoring: {
-        ...EMPTY.proctoring,
+        ...EMPTY_PROCTORING,
         ...((full.settings?.proctoring as Partial<Proctoring>) ?? {}),
       },
+      blueprint: bp,
     });
     setShowForm(true);
   }
 
-  function addQuestion() {
-    if (!toAdd) return;
-    if (form.picked.some((p) => p.question_id === toAdd)) return;
-    const qn = questions.find((q) => q.id === toAdd);
-    if (!qn) return;
+  function setCell(catId: string, diff: Difficulty, value: string) {
+    const cat = form.blueprint[catId] ?? { easy: "", medium: "", hard: "" };
     setForm({
       ...form,
-      picked: [
-        ...form.picked,
-        { question_id: qn.id, prompt: qn.prompt, weight: "" },
-      ],
+      blueprint: { ...form.blueprint, [catId]: { ...cat, [diff]: value } },
     });
-    setToAdd("");
   }
 
-  function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= form.picked.length) return;
-    const picked = [...form.picked];
-    [picked[i], picked[j]] = [picked[j], picked[i]];
-    setForm({ ...form, picked });
+  function totalQuestions(): number {
+    let n = 0;
+    for (const cat of Object.values(form.blueprint))
+      for (const d of DIFFS) n += Number(cat[d]) || 0;
+    return n;
   }
 
   async function save() {
     setError(null);
-    const questionsPayload = form.picked.map((p, i) => ({
-      question_id: p.question_id,
-      position: i,
-      weight: p.weight === "" ? null : Number(p.weight),
-    }));
+    const blueprint: { category_id: string; difficulty: Difficulty; count: number }[] =
+      [];
+    for (const [catId, cells] of Object.entries(form.blueprint)) {
+      for (const d of DIFFS) {
+        const count = Number(cells[d]) || 0;
+        if (count > 0) blueprint.push({ category_id: catId, difficulty: d, count });
+      }
+    }
     const base = {
       title: form.title,
       description: form.description,
       duration_minutes: Number(form.duration_minutes),
       pass_mark: Number(form.pass_mark),
-      questions: questionsPayload,
       settings: { proctoring: form.proctoring },
+      blueprint,
     };
     try {
       if (editing) {
-        await api.patch(`/tests/${editing.id}`, {
-          ...base,
-          status: form.status,
-        });
+        await api.patch(`/tests/${editing.id}`, { ...base, status: form.status });
       } else {
         await api.post(`/tests`, base);
       }
@@ -189,7 +185,6 @@ export default function TestsPage() {
         title="Tests"
         action={<Button onClick={openCreate}>+ New test</Button>}
       />
-
       <ErrorText message={!showForm ? error : null} />
 
       <div
@@ -264,11 +259,9 @@ export default function TestsPage() {
           </Field>
           <Field label="Description">
             <textarea
-              style={{ ...inputStyle, minHeight: 56 }}
+              style={{ ...inputStyle, minHeight: 50 }}
               value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </Field>
           <div style={{ display: "flex", gap: 12 }}>
@@ -279,10 +272,7 @@ export default function TestsPage() {
                   style={inputStyle}
                   value={form.duration_minutes}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      duration_minutes: Number(e.target.value),
-                    })
+                    setForm({ ...form, duration_minutes: Number(e.target.value) })
                   }
                 />
               </Field>
@@ -321,6 +311,57 @@ export default function TestsPage() {
             )}
           </div>
 
+          <Field label={`Question blueprint — random draw per category & level (total: ${totalQuestions()})`}>
+            {categories.length === 0 ? (
+              <span style={{ color: "var(--muted)", fontSize: 13 }}>
+                No categories yet. Create some under Categories, then add
+                questions to them.
+              </span>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, padding: "6px 8px" }}>Category</th>
+                    {DIFFS.map((d) => (
+                      <th
+                        key={d}
+                        style={{ ...th, padding: "6px 8px", textTransform: "capitalize" }}
+                      >
+                        {d}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((c, i) => (
+                    <tr key={c.id}>
+                      <td style={{ ...td, padding: "6px 8px" }}>
+                        {i + 1}. {c.name}
+                      </td>
+                      {DIFFS.map((d) => (
+                        <td key={d} style={{ ...td, padding: "6px 8px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <input
+                              type="number"
+                              min={0}
+                              max={c.counts[d]}
+                              style={{ ...inputStyle, width: 56, padding: "4px 6px" }}
+                              value={form.blueprint[c.id]?.[d] ?? ""}
+                              onChange={(e) => setCell(c.id, d, e.target.value)}
+                            />
+                            <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                              /{c.counts[d]}
+                            </span>
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Field>
+
           <Field label="Proctoring">
             <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
               {(
@@ -331,20 +372,14 @@ export default function TestsPage() {
                   ["block_copy_paste", "Block copy/paste"],
                 ] as [keyof Proctoring, string][]
               ).map(([key, label]) => (
-                <label
-                  key={key}
-                  style={{ fontSize: 13, color: "var(--muted)" }}
-                >
+                <label key={key} style={{ fontSize: 13, color: "var(--muted)" }}>
                   <input
                     type="checkbox"
                     checked={form.proctoring[key]}
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        proctoring: {
-                          ...form.proctoring,
-                          [key]: e.target.checked,
-                        },
+                        proctoring: { ...form.proctoring, [key]: e.target.checked },
                       })
                     }
                   />{" "}
@@ -354,86 +389,13 @@ export default function TestsPage() {
             </div>
           </Field>
 
-          <Field label="Questions (in order)">
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <select
-                style={inputStyle}
-                value={toAdd}
-                onChange={(e) => setToAdd(e.target.value)}
-              >
-                <option value="">Select a question to add…</option>
-                {questions
-                  .filter(
-                    (q) => !form.picked.some((p) => p.question_id === q.id)
-                  )
-                  .map((q) => (
-                    <option key={q.id} value={q.id}>
-                      [{q.type}] {q.prompt.slice(0, 50)}
-                    </option>
-                  ))}
-              </select>
-              <Button variant="ghost" onClick={addQuestion}>
-                Add
-              </Button>
-            </div>
-            {form.picked.length === 0 ? (
-              <p style={{ color: "var(--muted)", fontSize: 13 }}>
-                No questions added.
-              </p>
-            ) : (
-              form.picked.map((p, i) => (
-                <div
-                  key={p.question_id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    marginBottom: 6,
-                  }}
-                >
-                  <span style={{ color: "var(--muted)", width: 20 }}>
-                    {i + 1}.
-                  </span>
-                  <span style={{ flex: 1, fontSize: 13 }}>
-                    {p.prompt.slice(0, 50)}
-                  </span>
-                  <input
-                    style={{ ...inputStyle, width: 90 }}
-                    placeholder="weight"
-                    value={p.weight}
-                    onChange={(e) => {
-                      const picked = [...form.picked];
-                      picked[i] = { ...p, weight: e.target.value };
-                      setForm({ ...form, picked });
-                    }}
-                  />
-                  <Button variant="ghost" onClick={() => move(i, -1)}>
-                    ↑
-                  </Button>
-                  <Button variant="ghost" onClick={() => move(i, 1)}>
-                    ↓
-                  </Button>
-                  <Button
-                    variant="danger"
-                    onClick={() =>
-                      setForm({
-                        ...form,
-                        picked: form.picked.filter((_, j) => j !== i),
-                      })
-                    }
-                  >
-                    ✕
-                  </Button>
-                </div>
-              ))
-            )}
-          </Field>
-
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Button variant="ghost" onClick={() => setShowForm(false)}>
               Cancel
             </Button>
-            <Button onClick={save}>{editing ? "Save" : "Create"}</Button>
+            <Button onClick={save} disabled={!form.title || totalQuestions() === 0}>
+              {editing ? "Save" : "Create"}
+            </Button>
           </div>
         </Modal>
       )}

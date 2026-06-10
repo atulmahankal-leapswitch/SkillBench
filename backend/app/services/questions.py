@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.category import Category, question_categories
 from app.models.question import Question
 from app.models.user import User
 from app.schemas.question import QuestionCreate, QuestionUpdate, validate_payload
@@ -20,6 +21,26 @@ def _base_query(user: User):
     )
 
 
+async def _resolve_categories(
+    db: AsyncSession, user: User, category_ids: list[uuid.UUID]
+) -> list[Category]:
+    if not category_ids:
+        return []
+    cats = list(
+        (
+            await db.execute(
+                select(Category).where(
+                    Category.id.in_(category_ids),
+                    Category.organization_id == user.organization_id,
+                )
+            )
+        ).scalars().all()
+    )
+    if len(cats) != len(set(category_ids)):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown category id(s)")
+    return cats
+
+
 async def list_questions(
     db: AsyncSession,
     user: User,
@@ -28,6 +49,7 @@ async def list_questions(
     type_: str | None,
     difficulty: str | None,
     tag: str | None,
+    category_id: uuid.UUID | None,
     limit: int,
     offset: int,
 ) -> tuple[list[Question], int]:
@@ -40,6 +62,14 @@ async def list_questions(
         stmt = stmt.where(Question.difficulty == difficulty)
     if tag:
         stmt = stmt.where(Question.tags.any(tag))
+    if category_id:
+        stmt = stmt.where(
+            Question.id.in_(
+                select(question_categories.c.question_id).where(
+                    question_categories.c.category_id == category_id
+                )
+            )
+        )
     stmt = stmt.order_by(Question.created_at.desc())
     return await paginate(db, stmt, limit, offset)
 
@@ -67,6 +97,7 @@ async def create_question(
         tags=data.tags,
         created_by=user.id,
     )
+    question.categories = await _resolve_categories(db, user, data.category_ids)
     db.add(question)
     await db.commit()
     await db.refresh(question)
@@ -81,6 +112,10 @@ async def update_question(
     if "payload" in fields and fields["payload"] is not None:
         # Validate the new payload against the question's (immutable) type.
         fields["payload"] = validate_payload(question.type_enum, fields["payload"])
+    if "category_ids" in fields:
+        question.categories = await _resolve_categories(
+            db, user, fields.pop("category_ids") or []
+        )
     for field, value in fields.items():
         setattr(question, field, value)
     await db.commit()

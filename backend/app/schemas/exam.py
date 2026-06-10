@@ -8,7 +8,6 @@ from pydantic import BaseModel
 
 from app.models.enums import AttemptStatus, QuestionType
 from app.models.question import Question
-from app.models.test import TestQuestion
 
 
 class PublicQuestion(BaseModel):
@@ -27,9 +26,7 @@ class PublicQuestion(BaseModel):
     sample_test_cases: list[dict[str, str]] | None = None
 
 
-def build_public_question(tq: TestQuestion) -> PublicQuestion:
-    q: Question = tq.question
-    points = float(tq.weight) if tq.weight is not None else float(q.points)
+def build_public_question(q: Question, points: float) -> PublicQuestion:
     payload = q.payload or {}
     pub = PublicQuestion(id=q.id, type=QuestionType(q.type), prompt=q.prompt, points=points)
     if q.type in (QuestionType.MCQ, QuestionType.MULTI_SELECT):

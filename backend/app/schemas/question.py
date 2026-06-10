@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.enums import Difficulty, QuestionType
+from app.schemas.category import CategoryRef
 
 
 # ── Type-specific payload shapes ─────────────────────────────────────────────
@@ -77,6 +78,8 @@ class QuestionBase(BaseModel):
 
 
 class QuestionCreate(QuestionBase):
+    category_ids: list[uuid.UUID] = Field(default_factory=list)
+
     @model_validator(mode="after")
     def _validate_payload(self) -> "QuestionCreate":
         self.payload = validate_payload(self.type, self.payload)
@@ -91,6 +94,7 @@ class QuestionUpdate(BaseModel):
     difficulty: Difficulty | None = None
     points: float | None = Field(default=None, ge=0)
     tags: list[str] | None = None
+    category_ids: list[uuid.UUID] | None = None
 
 
 class QuestionOut(BaseModel):
@@ -103,6 +107,7 @@ class QuestionOut(BaseModel):
     difficulty: Difficulty
     points: float
     tags: list[str]
+    categories: list[CategoryRef] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

@@ -5,10 +5,11 @@ from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, uuid_pk
+from app.models.category import Category, question_categories
 from app.models.enums import Difficulty, QuestionType
 
 
@@ -44,6 +45,10 @@ class Question(Base, TimestampMixin):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+    categories: Mapped[list["Category"]] = relationship(
+        secondary=question_categories, back_populates="questions", lazy="selectin"
     )
 
     # Convenience: enum view of the stored string.
