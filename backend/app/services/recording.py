@@ -110,3 +110,30 @@ def stream(org: Organization, attempt_id: uuid.UUID) -> Iterator[bytes]:
     if provider_of(org) == "s3":
         return _s3_stream(org, attempt_id)
     return iter(())
+
+
+def check_connection(org: Organization) -> tuple[bool, str]:
+    """Verify the configured storage works, so admins can confirm in-app
+    instead of opening the (server-side) endpoint in a browser."""
+    provider = provider_of(org)
+    if provider == "local":
+        try:
+            d = Path(settings.recording_dir)
+            d.mkdir(parents=True, exist_ok=True)
+            probe = d / ".write-test"
+            probe.write_bytes(b"ok")
+            probe.unlink(missing_ok=True)
+            return True, f"Local storage is writable ({settings.recording_dir})."
+        except Exception as e:  # noqa: BLE001 - surface any FS error to the admin
+            return False, f"Local storage not writable: {e}"
+    if provider == "s3":
+        if not org.recording_s3_bucket:
+            return False, "No bucket configured."
+        try:
+            _s3_client(org).list_objects_v2(
+                Bucket=org.recording_s3_bucket, MaxKeys=1
+            )
+            return True, f"Connected — bucket '{org.recording_s3_bucket}' is reachable."
+        except Exception as e:  # noqa: BLE001 - surface the boto/botocore error
+            return False, f"Connection failed: {e}"
+    return False, "Recording is disabled (no provider selected)."

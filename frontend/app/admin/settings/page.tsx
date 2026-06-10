@@ -115,6 +115,8 @@ function SettingsInner() {
   const [recAccessKey, setRecAccessKey] = useState("");
   const [recSecret, setRecSecret] = useState("");
   const [recSaved, setRecSaved] = useState(false);
+  const [recTest, setRecTest] = useState<{ ok: boolean; detail: string } | null>(null);
+  const [recTesting, setRecTesting] = useState(false);
 
   // Keys + webhooks
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -205,6 +207,20 @@ function SettingsInner() {
       setTimeout(() => setRecSaved(false), 2000);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Save failed");
+    }
+  }
+
+  async function testRec() {
+    setRecTest(null);
+    setRecTesting(true);
+    try {
+      // Test the saved settings — server-side reaches the storage for us.
+      await saveRec();
+      setRecTest(await api.post<{ ok: boolean; detail: string }>("/settings/recording/test", {}));
+    } catch (e) {
+      setRecTest({ ok: false, detail: e instanceof ApiError ? e.message : "Test failed" });
+    } finally {
+      setRecTesting(false);
     }
   }
 
@@ -471,8 +487,9 @@ function SettingsInner() {
           <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 0 }}>
             Where candidate screen recordings are stored (enable “Record screen”
             on a test to capture). Uses S3-compatible object storage — in dev
-            point it at the bundled MinIO (endpoint <code>http://minio:9000</code>);
-            in production use AWS S3 / Cloudflare R2.
+            point it at the bundled MinIO; in production use AWS S3 / Cloudflare R2.
+            Recordings upload and play back <strong>through the server</strong>, so
+            the endpoint is a server-side address.
           </p>
           <Field label="Storage provider">
             <select
@@ -504,16 +521,23 @@ function SettingsInner() {
                   </Field>
                 </div>
                 <div style={{ flex: 2 }}>
-                  <Field label="Endpoint (for R2/MinIO; blank = AWS)">
+                  <Field label="Endpoint — server-side (R2/MinIO; blank = AWS)">
                     <input
                       style={inputStyle}
-                      placeholder="https://…"
+                      placeholder="http://minio:9000"
                       value={rec.s3_endpoint}
                       onChange={(e) => setRec({ ...rec, s3_endpoint: e.target.value })}
                     />
                   </Field>
                 </div>
               </div>
+              <p style={{ color: "var(--muted)", fontSize: 12, marginTop: -4 }}>
+                For the bundled dev MinIO use <code>http://minio:9000</code> — this
+                is the Docker network address the <em>server</em> uses, not a
+                browser URL (opening it in a browser won&apos;t resolve). To browse
+                files directly, use the MinIO console at{" "}
+                <code>http://localhost:9001</code>.
+              </p>
               <Field label={`Access key ID ${rec.s3_access_key_set ? "(set)" : ""}`}>
                 <input
                   type="password"
@@ -534,8 +558,27 @@ function SettingsInner() {
               </Field>
             </>
           )}
-          <Button onClick={saveRec}>Save recording settings</Button>
-          {recSaved && <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Button onClick={saveRec}>Save recording settings</Button>
+            {rec.provider && (
+              <Button variant="ghost" onClick={testRec} disabled={recTesting}>
+                {recTesting ? "Testing…" : "Test connection"}
+              </Button>
+            )}
+            {recSaved && <span style={{ color: "#7ee787" }}>Saved</span>}
+          </div>
+          {recTest && (
+            <p
+              style={{
+                marginTop: 10,
+                fontSize: 13,
+                color: recTest.ok ? "#7ee787" : "#ff8a8a",
+              }}
+            >
+              {recTest.ok ? "✓ " : "✗ "}
+              {recTest.detail}
+            </p>
+          )}
         </section>
       )}
 

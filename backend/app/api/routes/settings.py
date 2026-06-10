@@ -13,7 +13,7 @@ from app.schemas.recording_settings import (
     RecordingSettingsOut,
     RecordingSettingsUpdate,
 )
-from app.services import ai, claude_auth
+from app.services import ai, claude_auth, recording
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -111,6 +111,17 @@ async def update_recording_settings(
     await db.commit()
     await db.refresh(org)
     return _rec_out(org)
+
+
+@router.post("/recording/test")
+async def test_recording_settings(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("settings:manage")),
+) -> dict:
+    """Check the saved recording storage from the server side."""
+    org = await _org(db, user)
+    ok, detail = recording.check_connection(org)
+    return {"ok": ok, "detail": detail}
 
 
 @router.get("/claude-auth")
