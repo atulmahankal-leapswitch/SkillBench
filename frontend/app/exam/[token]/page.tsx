@@ -58,6 +58,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [fsBlocked, setFsBlocked] = useState(false);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
   const submittedRef = useRef(false);
 
   const accent = state?.branding?.brand_color || "#4f8cff";
@@ -371,13 +372,36 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
         <span style={{ color: "var(--muted)", fontSize: 13 }}>
           {saving ? "Saving…" : "✓ All changes saved"}
         </span>
-        <button
-          onClick={() => confirm("Submit your assessment?") && doSubmit()}
-          style={btn(accent)}
-        >
+        <button onClick={() => setConfirmSubmit(true)} style={btn(accent)}>
           Submit assessment
         </button>
       </div>
+
+      {/* In-page confirmation (a native confirm() would drop fullscreen). */}
+      {confirmSubmit && (
+        <div style={overlayStyle}>
+          <div style={{ ...cardStyle, maxWidth: 420, textAlign: "center" }}>
+            <h2 style={{ marginTop: 0 }}>Submit assessment?</h2>
+            <p style={{ color: "var(--muted)" }}>
+              You won&apos;t be able to change your answers after submitting.
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <button onClick={() => setConfirmSubmit(false)} style={btnGhost}>
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmSubmit(false);
+                  doSubmit();
+                }}
+                style={btn(accent)}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
