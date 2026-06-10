@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.ai_settings import AISettingsOut, AISettingsUpdate
-from app.services import ai
+from app.services import ai, claude_auth
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -64,3 +64,19 @@ async def update_ai_settings(
     await db.commit()
     await db.refresh(org)
     return _out(org)
+
+
+@router.get("/claude-auth")
+async def claude_auth_status(
+    user: User = Depends(require_permission("settings:manage")),
+) -> dict:
+    """Claude Code SDK OAuth login status (from the mounted host ~/.claude)."""
+    return await claude_auth.status()
+
+
+@router.post("/claude-auth/logout")
+async def claude_auth_logout(
+    user: User = Depends(require_permission("settings:manage")),
+) -> dict:
+    claude_auth.logout()
+    return await claude_auth.status()

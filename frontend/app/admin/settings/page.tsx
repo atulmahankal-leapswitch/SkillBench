@@ -66,6 +66,13 @@ export default function SettingsPage() {
   });
   const [aiKey, setAiKey] = useState("");
   const [aiSaved, setAiSaved] = useState(false);
+  const [claudeAuth, setClaudeAuth] = useState<{
+    authenticated: boolean;
+    email?: string | null;
+    subscription_type?: string | null;
+    expires_at?: string | null;
+    reason?: string;
+  } | null>(null);
 
   // Keys + webhooks
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -109,7 +116,33 @@ export default function SettingsPage() {
     const models = ai.models[p] || [];
     const model = models.includes(ai.model) ? ai.model : (models[0] ?? "");
     setAi({ ...ai, provider: p, model });
+    if (p === "claude_code_sdk") loadClaudeAuth();
   }
+
+  async function loadClaudeAuth() {
+    try {
+      setClaudeAuth(await api.get("/settings/claude-auth"));
+    } catch {
+      setClaudeAuth(null);
+    }
+  }
+
+  async function claudeLogout() {
+    if (!confirm("Sign out Claude on the host? Re-login needs `claude login`.")) return;
+    try {
+      setClaudeAuth(await api.post("/settings/claude-auth/logout", {}));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Logout failed");
+    }
+  }
+
+  // Load Claude auth status when the AI tab opens on the SDK provider.
+  useEffect(() => {
+    if (tab === "AI Provider" && ai.provider === "claude_code_sdk") {
+      loadClaudeAuth();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, ai.provider]);
 
   async function saveAi(clearKey = false) {
     setError(null);
@@ -274,10 +307,48 @@ export default function SettingsPage() {
           )}
 
           {ai.provider === "claude_code_sdk" && (
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>
-              Uses the Claude Code SDK (claude-agent-sdk) with the host&apos;s
-              Claude credentials — no API key needed here.
-            </p>
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: 14,
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 8 }}>
+                Authenticates via the host&apos;s Claude login (no API key). The
+                host&apos;s <code>~/.claude</code> is mounted into the backend.
+              </div>
+              {claudeAuth === null ? (
+                <span style={{ color: "var(--muted)" }}>Checking…</span>
+              ) : claudeAuth.authenticated ? (
+                <div>
+                  <span style={{ color: "#7ee787" }}>● Signed in</span>{" "}
+                  {claudeAuth.email && <strong>{claudeAuth.email}</strong>}
+                  {claudeAuth.subscription_type && (
+                    <Badge>{claudeAuth.subscription_type}</Badge>
+                  )}
+                  {claudeAuth.expires_at && (
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                      Token expires {new Date(claudeAuth.expires_at).toLocaleString()}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 8 }}>
+                    <Button variant="danger" onClick={claudeLogout}>
+                      Sign out
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: "#ffcf6b", fontSize: 13 }}>
+                  ● Not signed in
+                  <div style={{ color: "var(--muted)", marginTop: 4 }}>
+                    {claudeAuth.reason ??
+                      "Run `claude login` on the host, then refresh."}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           {ai.provider === "stub" && (
             <p style={{ fontSize: 13, color: "var(--muted)" }}>
