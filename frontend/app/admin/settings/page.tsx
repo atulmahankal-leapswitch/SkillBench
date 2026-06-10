@@ -316,8 +316,9 @@ export default function SettingsPage() {
               }}
             >
               <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 8 }}>
-                Authenticates via the host&apos;s Claude login (no API key). The
-                host&apos;s <code>~/.claude</code> is mounted into the backend.
+                Authenticates via the host&apos;s Claude login (no API key) — for
+                local/dev only, where <code>~/.claude</code> is mounted. In
+                production use an API-key provider (Anthropic / OpenAI).
               </div>
               {claudeAuth === null ? (
                 <span style={{ color: "var(--muted)" }}>Checking…</span>

@@ -46,10 +46,6 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://skillbench:change-me-postgres@db:5432/skillbench}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      CLAUDE_HOME: /root/.claude
-    volumes:
-      # Mount the host's Claude login so the Claude Code SDK provider can use it.
-      - "${CLAUDE_HOME:-${HOME}/.claude}:/root/.claude"
     depends_on:
       db:
         condition: service_healthy
