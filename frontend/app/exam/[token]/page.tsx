@@ -32,6 +32,7 @@ type ExamState = {
     fullscreen?: boolean;
     block_copy_paste?: boolean;
     single_display?: boolean;
+    record_screen?: boolean;
   };
   branding: { display_name?: string; logo_url?: string; brand_color?: string };
 };
@@ -194,6 +195,75 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     if (!document.fullscreenElement) setFsBlocked(true);
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, [active, proctoring.fullscreen, report]);
+
+  // Continuous screen recording: record the whole screen and upload chunks.
+  // Chunks that fail to upload (offline) are queued and flushed when back online.
+  useEffect(() => {
+    if (!active || !proctoring.record_screen) return;
+    let stream: MediaStream | null = null;
+    let recorder: MediaRecorder | null = null;
+    let seq = 0;
+    let cancelled = false;
+    const queue: Blob[] = [];
+
+    async function upload(blob: Blob, n: number) {
+      const fd = new FormData();
+      fd.append("seq", String(n));
+      fd.append("file", blob, `chunk-${n}.webm`);
+      const res = await fetch(`${browserApiBase}/api/exam/${token}/recording`, {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) throw new Error(String(res.status));
+    }
+
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      } catch {
+        report("screen_denied");
+        return;
+      }
+      if (cancelled) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
+      recorder = new MediaRecorder(stream, { mimeType: mime });
+      recorder.ondataavailable = async (e) => {
+        if (!e.data || e.data.size === 0) return;
+        const n = seq++;
+        try {
+          await upload(e.data, n);
+        } catch {
+          queue.push(e.data); // retry when online
+        }
+        // Opportunistically flush any queued chunks.
+        while (navigator.onLine && queue.length) {
+          const b = queue.shift()!;
+          try {
+            await upload(b, seq++);
+          } catch {
+            queue.unshift(b);
+            break;
+          }
+        }
+      };
+      recorder.start(5000); // emit a chunk every 5s
+    })();
+
+    return () => {
+      cancelled = true;
+      try {
+        recorder?.stop();
+      } catch {
+        /* ignore */
+      }
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [active, proctoring.record_screen, report, token]);
 
   // Multiple-display detection: browsers can't disable extra monitors, but we
   // can detect an extended desktop (screen.isExtended) and block until single.

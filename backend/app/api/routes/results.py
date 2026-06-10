@@ -87,6 +87,32 @@ async def integrity(
     return await plagiarism.integrity(db, user, attempt_id)
 
 
+@router.get("/{attempt_id}/recording")
+async def recording_playback(
+    attempt_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("result:read")),
+):
+    from fastapi import HTTPException
+    from fastapi import status as http
+    from fastapi.responses import StreamingResponse
+    from sqlalchemy import select
+
+    from app.models.organization import Organization
+    from app.services import proctoring, recording
+
+    # Reuse proctoring's org-scoped attempt lookup for the 404 + tenancy check.
+    attempt = await proctoring._admin_attempt(db, user, attempt_id)
+    org = (
+        await db.execute(
+            select(Organization).where(Organization.id == user.organization_id)
+        )
+    ).scalar_one()
+    if not recording.exists(org, attempt.id):
+        raise HTTPException(http.HTTP_404_NOT_FOUND, "No recording")
+    return StreamingResponse(recording.stream(org, attempt.id), media_type="video/webm")
+
+
 @router.get("/{attempt_id}/proctor/{event_id}/image")
 async def proctor_snapshot(
     attempt_id: uuid.UUID,

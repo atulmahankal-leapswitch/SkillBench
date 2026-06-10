@@ -34,6 +34,22 @@ class Organization(Base, TimestampMixin):
     ai_model: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     ai_api_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)
 
+    # Screen-recording storage. provider: "" (disabled) | "local" | "s3".
+    recording_provider: Mapped[str] = mapped_column(String(20), default="", nullable=False)
+    recording_s3_bucket: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    recording_s3_region: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    recording_s3_endpoint: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    recording_s3_access_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    recording_s3_secret: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+
+    # Screen-recording storage. provider: "" (disabled) | "local" | "s3".
+    recording_provider: Mapped[str] = mapped_column(String(20), default="", nullable=False)
+    recording_s3_bucket: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    recording_s3_region: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    recording_s3_endpoint: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    recording_s3_access_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    recording_s3_secret: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+
     users: Mapped[list["User"]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"
     )

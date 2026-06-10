@@ -22,7 +22,7 @@ from app.schemas.exam import (
     RunResponse,
     build_public_question,
 )
-from app.services import integrations, judge0, proctoring
+from app.services import integrations, judge0, proctoring, recording
 from app.services.grading import grade_attempt
 from app.services.schedules import effective_status, get_invitation_by_token
 
@@ -306,6 +306,26 @@ async def run_code(db: AsyncSession, token: str, data: RunRequest) -> RunRespons
             RunCaseResult(passed=r.passed, status=r.status, stdout=r.stdout, stderr=r.stderr)
         )
     return RunResponse(results=results)
+
+
+async def save_recording_chunk(
+    db: AsyncSession, token: str, seq: int, data: bytes
+) -> dict:
+    _, schedule = await _load(db, token)
+    attempt = await _get_attempt(db, schedule)
+    if attempt is None:
+        raise HTTPException(http.HTTP_409_CONFLICT, "Attempt not started")
+    org = (
+        await db.execute(
+            select(Organization).where(Organization.id == schedule.organization_id)
+        )
+    ).scalar_one()
+    if not recording.is_enabled(org):
+        raise HTTPException(
+            http.HTTP_503_SERVICE_UNAVAILABLE, "Recording storage is not configured"
+        )
+    recording.append_chunk(org, attempt.id, seq, data)
+    return {"saved": True}
 
 
 async def report_proctor_event(

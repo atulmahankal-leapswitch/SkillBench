@@ -2,6 +2,7 @@
 
 import { Suspense, use, useEffect, useState } from "react";
 import Link from "next/link";
+import { browserApiBase } from "@/lib/api";
 import { api, ApiError, QuestionResult, ResultDetail } from "@/lib/client";
 import { Badge, Button, ErrorText, inputStyle } from "@/components/ui";
 
@@ -53,6 +54,7 @@ export default function ResultDetailPage({
 function ResultDetailInner({ attemptId }: { attemptId: string }) {
   const [d, setD] = useState<ResultDetail | null>(null);
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [proctor, setProctor] = useState<Proctor | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -71,6 +73,13 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
       setOverrides(ov);
       setFeedbacks(fb);
       api.get<Integrity>(`/results/${attemptId}/integrity`).then(setIntegrity).catch(() => {});
+      // Screen recording (if any) — fetch as a blob so the admin cookie is sent.
+      fetch(`${browserApiBase}/api/results/${attemptId}/recording`, {
+        credentials: "include",
+      })
+        .then((r) => (r.ok ? r.blob() : Promise.reject()))
+        .then((b) => setRecordingUrl(URL.createObjectURL(b)))
+        .catch(() => setRecordingUrl(null));
       api.get<Proctor>(`/results/${attemptId}/proctor`).then(setProctor).catch(() => {});
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load");
@@ -187,6 +196,19 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
           </table>
         </div>
       </div>
+
+      {/* Screen recording */}
+      {recordingUrl && (
+        <div style={card}>
+          <h3 style={sectionTitle}>Screen recording</h3>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            src={recordingUrl}
+            controls
+            style={{ width: "100%", borderRadius: 8, background: "#000" }}
+          />
+        </div>
+      )}
 
       {/* Integrity */}
       <div style={card}>

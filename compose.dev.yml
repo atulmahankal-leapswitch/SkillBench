@@ -18,6 +18,8 @@ services:
       # agent SDK authenticates via OAuth without an API key. The container runs
       # as root and can read the host's ~/.claude/.credentials.json.
       - "${CLAUDE_HOME:-${HOME}/.claude}:/root/.claude"
+      # Local screen-recording storage (dev). Prod uses the S3 provider instead.
+      - recordings:/app/data/recordings
 
   frontend:
     build:
@@ -36,3 +38,5 @@ services:
 volumes:
   # Container-local Claude Code credentials (not the host's ~/.claude).
   claude-home:
+  # Local screen-recording storage (dev).
+  recordings:

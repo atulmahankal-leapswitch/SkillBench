@@ -33,14 +33,23 @@ type AISettings = {
   models: Record<string, string[]>;
   providers_needing_key: string[];
 };
+type RecSettings = {
+  provider: string;
+  s3_bucket: string;
+  s3_region: string;
+  s3_endpoint: string;
+  s3_access_key_set: boolean;
+  s3_secret_set: boolean;
+};
 
 const SCOPES = ["candidate:read", "result:read"];
 const EVENTS = ["attempt.submitted", "result.ready"];
-const TABS = ["Branding", "AI Provider", "API Keys", "Webhooks"] as const;
+const TABS = ["Branding", "AI Provider", "Recording", "API Keys", "Webhooks"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_SLUG: Record<Tab, string> = {
   Branding: "branding",
   "AI Provider": "ai",
+  Recording: "recording",
   "API Keys": "api-keys",
   Webhooks: "webhooks",
 };
@@ -94,6 +103,19 @@ function SettingsInner() {
     reason?: string;
   } | null>(null);
 
+  // Recording storage
+  const [rec, setRec] = useState<RecSettings>({
+    provider: "",
+    s3_bucket: "",
+    s3_region: "",
+    s3_endpoint: "",
+    s3_access_key_set: false,
+    s3_secret_set: false,
+  });
+  const [recAccessKey, setRecAccessKey] = useState("");
+  const [recSecret, setRecSecret] = useState("");
+  const [recSaved, setRecSaved] = useState(false);
+
   // Keys + webhooks
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [hooks, setHooks] = useState<Webhook[]>([]);
@@ -107,6 +129,7 @@ function SettingsInner() {
     try {
       setBrand(await api.get("/branding"));
       setAi(await api.get<AISettings>("/settings/ai"));
+      setRec(await api.get<RecSettings>("/settings/recording"));
       setKeys(await api.get<ApiKey[]>("/integrations/api-keys"));
       setHooks(await api.get<Webhook[]>("/integrations/webhooks"));
     } catch (e) {
@@ -163,6 +186,27 @@ function SettingsInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, ai.provider]);
+
+  async function saveRec() {
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        provider: rec.provider,
+        s3_bucket: rec.s3_bucket,
+        s3_region: rec.s3_region,
+        s3_endpoint: rec.s3_endpoint,
+      };
+      if (recAccessKey) body.s3_access_key = recAccessKey;
+      if (recSecret) body.s3_secret = recSecret;
+      setRec(await api.put<RecSettings>("/settings/recording", body));
+      setRecAccessKey("");
+      setRecSecret("");
+      setRecSaved(true);
+      setTimeout(() => setRecSaved(false), 2000);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Save failed");
+    }
+  }
 
   async function saveAi(clearKey = false) {
     setError(null);
@@ -402,6 +446,79 @@ function SettingsInner() {
               <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>
             )}
           </div>
+        </section>
+      )}
+
+      {tab === "Recording" && (
+        <section style={{ maxWidth: 560 }}>
+          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 0 }}>
+            Where candidate screen recordings are stored (enable “Record screen”
+            on a test to capture). <strong>Local</strong> writes to the backend’s
+            data volume — for development. <strong>S3</strong> for production.
+          </p>
+          <Field label="Storage provider">
+            <select
+              style={inputStyle}
+              value={rec.provider}
+              onChange={(e) => setRec({ ...rec, provider: e.target.value })}
+            >
+              <option value="">Disabled</option>
+              <option value="local">Local (dev — backend volume)</option>
+              <option value="s3">S3 / object storage</option>
+            </select>
+          </Field>
+          {rec.provider === "s3" && (
+            <>
+              <Field label="Bucket">
+                <input
+                  style={inputStyle}
+                  value={rec.s3_bucket}
+                  onChange={(e) => setRec({ ...rec, s3_bucket: e.target.value })}
+                />
+              </Field>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <Field label="Region">
+                    <input
+                      style={inputStyle}
+                      value={rec.s3_region}
+                      onChange={(e) => setRec({ ...rec, s3_region: e.target.value })}
+                    />
+                  </Field>
+                </div>
+                <div style={{ flex: 2 }}>
+                  <Field label="Endpoint (for R2/MinIO; blank = AWS)">
+                    <input
+                      style={inputStyle}
+                      placeholder="https://…"
+                      value={rec.s3_endpoint}
+                      onChange={(e) => setRec({ ...rec, s3_endpoint: e.target.value })}
+                    />
+                  </Field>
+                </div>
+              </div>
+              <Field label={`Access key ID ${rec.s3_access_key_set ? "(set)" : ""}`}>
+                <input
+                  type="password"
+                  style={inputStyle}
+                  placeholder={rec.s3_access_key_set ? "••••••••" : ""}
+                  value={recAccessKey}
+                  onChange={(e) => setRecAccessKey(e.target.value)}
+                />
+              </Field>
+              <Field label={`Secret access key ${rec.s3_secret_set ? "(set)" : ""}`}>
+                <input
+                  type="password"
+                  style={inputStyle}
+                  placeholder={rec.s3_secret_set ? "••••••••" : ""}
+                  value={recSecret}
+                  onChange={(e) => setRecSecret(e.target.value)}
+                />
+              </Field>
+            </>
+          )}
+          <Button onClick={saveRec}>Save recording settings</Button>
+          {recSaved && <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>}
         </section>
       )}
 

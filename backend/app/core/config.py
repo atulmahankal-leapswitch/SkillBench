@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
 
+    # Screen-recording local storage directory (used by the "local" provider).
+    recording_dir: str = "/app/data/recordings"
+
     # Judge0 (code-execution phase)
     judge0_enabled: bool = False
     judge0_url: str = "http://judge0:2358"

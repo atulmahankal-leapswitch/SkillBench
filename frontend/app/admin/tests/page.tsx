@@ -30,6 +30,7 @@ type Proctoring = {
   fullscreen: boolean;
   block_copy_paste: boolean;
   single_display: boolean;
+  record_screen: boolean;
 };
 
 // blueprint[categoryId][difficulty] = count (string for the input)
@@ -51,6 +52,7 @@ const EMPTY_PROCTORING: Proctoring = {
   fullscreen: false,
   block_copy_paste: false,
   single_display: false,
+  record_screen: false,
 };
 
 function emptyForm(): FormState {
@@ -373,6 +375,7 @@ export default function TestsPage() {
                   ["fullscreen", "Fullscreen"],
                   ["block_copy_paste", "Block copy/paste"],
                   ["single_display", "Single display only"],
+                  ["record_screen", "Record screen"],
                 ] as [keyof Proctoring, string][]
               ).map(([key, label]) => (
                 <label key={key} style={{ fontSize: 13, color: "var(--muted)" }}>

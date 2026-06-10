@@ -1,6 +1,6 @@
 """Public candidate exam endpoints, authenticated by the invite token."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,6 +46,16 @@ async def run_code(
     token: str, data: RunRequest, db: AsyncSession = Depends(get_db)
 ) -> RunResponse:
     return await svc.run_code(db, token, data)
+
+
+@router.post("/{token}/recording")
+async def upload_recording(
+    token: str,
+    seq: int = Form(0),
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    return await svc.save_recording_chunk(db, token, seq, await file.read())
 
 
 @router.post("/{token}/proctor")

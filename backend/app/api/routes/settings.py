@@ -9,6 +9,10 @@ from app.core.database import get_db
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.ai_settings import AISettingsOut, AISettingsUpdate
+from app.schemas.recording_settings import (
+    RecordingSettingsOut,
+    RecordingSettingsUpdate,
+)
 from app.services import ai, claude_auth
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -64,6 +68,49 @@ async def update_ai_settings(
     await db.commit()
     await db.refresh(org)
     return _out(org)
+
+
+def _rec_out(org: Organization) -> RecordingSettingsOut:
+    return RecordingSettingsOut(
+        provider=org.recording_provider,
+        s3_bucket=org.recording_s3_bucket,
+        s3_region=org.recording_s3_region,
+        s3_endpoint=org.recording_s3_endpoint,
+        s3_access_key_set=bool(org.recording_s3_access_key),
+        s3_secret_set=bool(org.recording_s3_secret),
+    )
+
+
+@router.get("/recording", response_model=RecordingSettingsOut)
+async def get_recording_settings(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("settings:manage")),
+) -> RecordingSettingsOut:
+    return _rec_out(await _org(db, user))
+
+
+@router.put("/recording", response_model=RecordingSettingsOut)
+async def update_recording_settings(
+    data: RecordingSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("settings:manage")),
+) -> RecordingSettingsOut:
+    org = await _org(db, user)
+    org.recording_provider = data.provider.strip()
+    org.recording_s3_bucket = data.s3_bucket.strip()
+    org.recording_s3_region = data.s3_region.strip()
+    org.recording_s3_endpoint = data.s3_endpoint.strip()
+    if data.s3_access_key == CLEAR:
+        org.recording_s3_access_key = ""
+    elif data.s3_access_key:
+        org.recording_s3_access_key = data.s3_access_key.strip()
+    if data.s3_secret == CLEAR:
+        org.recording_s3_secret = ""
+    elif data.s3_secret:
+        org.recording_s3_secret = data.s3_secret.strip()
+    await db.commit()
+    await db.refresh(org)
+    return _rec_out(org)
 
 
 @router.get("/claude-auth")
