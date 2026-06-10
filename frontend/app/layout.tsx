@@ -19,7 +19,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Apply the saved theme before paint to avoid a flash. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{document.documentElement.dataset.theme=localStorage.getItem('sb-theme')||'dark'}catch(e){document.documentElement.dataset.theme='dark'}",
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

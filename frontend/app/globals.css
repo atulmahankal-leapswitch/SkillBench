@@ -1,10 +1,20 @@
-:root {
+:root,
+:root[data-theme="dark"] {
   --bg: #0b0e14;
   --fg: #e6edf3;
   --muted: #8b949e;
   --accent: #4f8cff;
   --card: #131826;
   --border: #232a3b;
+}
+
+:root[data-theme="light"] {
+  --bg: #f6f8fa;
+  --fg: #1f2328;
+  --muted: #656d76;
+  --accent: #2563eb;
+  --card: #ffffff;
+  --border: #d8dee4;
 }
 
 * {

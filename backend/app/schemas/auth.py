@@ -19,6 +19,9 @@ class OrganizationOut(BaseModel):
     id: uuid.UUID
     name: str
     primary_domain: str
+    display_name: str = ""
+    logo_url: str = ""
+    brand_color: str = ""
 
 
 class UserOut(BaseModel):

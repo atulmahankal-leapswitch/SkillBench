@@ -13,6 +13,9 @@ export type Organization = {
   id: string;
   name: string;
   primary_domain: string;
+  display_name?: string;
+  logo_url?: string;
+  brand_color?: string;
 };
 export type CurrentUser = {
   id: string;

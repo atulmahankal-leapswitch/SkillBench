@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { fetchCurrentUser } from "@/lib/api";
-import LogoutButton from "./logout-button";
+import TopBar from "@/components/TopBar";
 
 const NAV = [
   { href: "/admin", label: "Dashboard" },
@@ -28,7 +28,8 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  const brand = user.organization.name || "SkillBench";
+  const brandName =
+    user.organization.display_name || user.organization.name || "SkillBench";
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -48,18 +49,33 @@ export default async function AdminLayout({
         <div
           style={{
             padding: "18px 20px",
-            fontWeight: 700,
-            fontSize: 18,
             borderBottom: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
           }}
         >
-          SkillBench
-          <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 400 }}>
-            {brand}
-          </div>
+          {user.organization.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.organization.logo_url}
+              alt={brandName}
+              style={{ maxHeight: 28, maxWidth: 150 }}
+            />
+          ) : (
+            <span style={{ fontWeight: 700, fontSize: 18 }}>{brandName}</span>
+          )}
         </div>
 
-        <nav style={{ padding: "12px 10px", display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+        <nav
+          style={{
+            padding: "12px 10px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            flex: 1,
+          }}
+        >
           {NAV.map((item) => (
             <Link
               key={item.href}
@@ -76,20 +92,16 @@ export default async function AdminLayout({
             </Link>
           ))}
         </nav>
-
-        <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, wordBreak: "break-all" }}>
-            {user.email}
-          </div>
-          <LogoutButton />
-        </div>
       </aside>
 
-      <main style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ maxWidth: 1040, margin: "0 auto", padding: "32px 28px" }}>
-          {children}
-        </div>
-      </main>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <TopBar email={user.email} fullName={user.full_name} />
+        <main style={{ flex: 1 }}>
+          <div style={{ maxWidth: 1040, margin: "0 auto", padding: "28px 28px" }}>
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
