@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   api,
   ApiError,
@@ -73,14 +74,33 @@ function buildPayload(f: FormState): Record<string, unknown> {
 }
 
 export default function QuestionsPage() {
+  return (
+    <Suspense fallback={null}>
+      <QuestionsInner />
+    </Suspense>
+  );
+}
+
+function QuestionsInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const paramStr = params.toString();
+
+  // Filters live in the URL (shareable, survive reload).
+  const fType = params.get("type") ?? "";
+  const fDifficulty = params.get("difficulty") ?? "";
+  const fCategory = params.get("category_id") ?? "";
+  const fSearch = params.get("q") ?? "";
+
   const [items, setItems] = useState<Question[]>([]);
-  const [typeFilter, setTypeFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Question | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [searchBox, setSearchBox] = useState(fSearch);
 
   useEffect(() => {
     api
@@ -89,11 +109,21 @@ export default function QuestionsPage() {
       .catch(() => {});
   }, []);
 
+  // Push a filter change into the URL; the load effect reacts to it.
+  function setParam(key: string, value: string) {
+    const next = new URLSearchParams(paramStr);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
+
   async function load() {
     setLoading(true);
     try {
-      const q = typeFilter ? `?type=${typeFilter}` : "";
-      const data = await api.get<Page<Question>>(`/questions${q}`);
+      const data = await api.get<Page<Question>>(
+        `/questions${paramStr ? `?${paramStr}` : ""}`
+      );
       setItems(data.items);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load");
@@ -103,9 +133,10 @@ export default function QuestionsPage() {
   }
 
   useEffect(() => {
+    setSearchBox(fSearch);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeFilter]);
+  }, [paramStr]);
 
   function openCreate() {
     setEditing(null);
@@ -195,6 +226,8 @@ export default function QuestionsPage() {
         setForm({
           ...form,
           prompt: g.prompt,
+          difficulty:
+            (g.difficulty as FormState["difficulty"]) ?? form.difficulty,
           options: (p.options as Option[]) ?? form.options,
           correct_keys: (p.correct_keys as string[]) ?? [],
           sample_answer: (p.sample_answer as string) ?? "",
@@ -227,11 +260,51 @@ export default function QuestionsPage() {
         action={<Button onClick={openCreate}>+ New question</Button>}
       />
 
-      <div style={{ marginBottom: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 16,
+          alignItems: "center",
+        }}
+      >
+        <input
+          style={{ ...inputStyle, maxWidth: 240 }}
+          placeholder="Search prompt…"
+          value={searchBox}
+          onChange={(e) => setSearchBox(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && setParam("q", searchBox.trim())}
+        />
+        <Button variant="ghost" onClick={() => setParam("q", searchBox.trim())}>
+          Search
+        </Button>
         <select
-          style={{ ...inputStyle, maxWidth: 220 }}
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
+          style={{ ...inputStyle, maxWidth: 180 }}
+          value={fCategory}
+          onChange={(e) => setParam("category_id", e.target.value)}
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <select
+          style={{ ...inputStyle, maxWidth: 150 }}
+          value={fDifficulty}
+          onChange={(e) => setParam("difficulty", e.target.value)}
+        >
+          <option value="">All levels</option>
+          <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+        <select
+          style={{ ...inputStyle, maxWidth: 170 }}
+          value={fType}
+          onChange={(e) => setParam("type", e.target.value)}
         >
           <option value="">All types</option>
           <option value="mcq">MCQ (single)</option>
@@ -239,6 +312,11 @@ export default function QuestionsPage() {
           <option value="text">Text</option>
           <option value="coding">Coding</option>
         </select>
+        {(fSearch || fCategory || fDifficulty || fType) && (
+          <Button variant="ghost" onClick={() => router.replace(pathname)}>
+            Clear
+          </Button>
+        )}
       </div>
 
       <ErrorText message={!showForm ? error : null} />
@@ -255,6 +333,7 @@ export default function QuestionsPage() {
           <thead>
             <tr>
               <th style={th}>Prompt</th>
+              <th style={th}>Categories</th>
               <th style={th}>Type</th>
               <th style={th}>Difficulty</th>
               <th style={th}>Points</th>
@@ -264,23 +343,30 @@ export default function QuestionsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td style={td} colSpan={5}>
+                <td style={td} colSpan={6}>
                   Loading…
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td style={{ ...td, color: "var(--muted)" }} colSpan={5}>
-                  No questions yet.
+                <td style={{ ...td, color: "var(--muted)" }} colSpan={6}>
+                  No questions match.
                 </td>
               </tr>
             ) : (
               items.map((qn) => (
                 <tr key={qn.id}>
-                  <td style={{ ...td, maxWidth: 360 }}>
-                    {qn.prompt.length > 80
-                      ? qn.prompt.slice(0, 80) + "…"
+                  <td style={{ ...td, maxWidth: 320 }}>
+                    {qn.prompt.length > 70
+                      ? qn.prompt.slice(0, 70) + "…"
                       : qn.prompt}
+                  </td>
+                  <td style={td}>
+                    {qn.categories.length === 0 ? (
+                      <span style={{ color: "var(--muted)" }}>—</span>
+                    ) : (
+                      qn.categories.map((c) => <Badge key={c.id}>{c.name}</Badge>)
+                    )}
                   </td>
                   <td style={td}>
                     <Badge>{qn.type}</Badge>
@@ -311,23 +397,28 @@ export default function QuestionsPage() {
           {!editing && (
             <div
               style={{
-                display: "flex",
-                gap: 8,
                 marginBottom: 14,
                 padding: 10,
                 border: "1px dashed var(--border)",
                 borderRadius: 8,
               }}
             >
-              <input
-                style={inputStyle}
-                placeholder="AI: topic to generate from…"
-                value={genTopic}
-                onChange={(e) => setGenTopic(e.target.value)}
-              />
-              <Button variant="ghost" onClick={generate} disabled={generating}>
-                {generating ? "Generating…" : "✨ Generate"}
-              </Button>
+              <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 6 }}>
+                Prompt — describe what to ask; AI fills the question & details
+                (uses the selected type & difficulty).
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. JavaScript closures, intermediate level"
+                  value={genTopic}
+                  onChange={(e) => setGenTopic(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && generate()}
+                />
+                <Button variant="ghost" onClick={generate} disabled={generating}>
+                  {generating ? "Generating…" : "✨ Generate"}
+                </Button>
+              </div>
             </div>
           )}
           <Field label="Type">
@@ -345,7 +436,35 @@ export default function QuestionsPage() {
               <option value="coding">Coding</option>
             </select>
           </Field>
-          <Field label="Prompt">
+          <Field label="Categories">
+            {categories.length === 0 ? (
+              <span style={{ color: "var(--muted)", fontSize: 13 }}>
+                No categories yet — add some under Categories.
+              </span>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                {categories.map((c) => (
+                  <label key={c.id} style={{ fontSize: 13, color: "var(--muted)" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.category_ids.includes(c.id)}
+                      onChange={() => {
+                        const has = form.category_ids.includes(c.id);
+                        setForm({
+                          ...form,
+                          category_ids: has
+                            ? form.category_ids.filter((x) => x !== c.id)
+                            : [...form.category_ids, c.id],
+                        });
+                      }}
+                    />{" "}
+                    {c.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </Field>
+          <Field label="Question">
             <textarea
               style={{ ...inputStyle, minHeight: 70 }}
               value={form.prompt}
@@ -544,35 +663,6 @@ export default function QuestionsPage() {
               </Field>
             </>
           )}
-
-          <Field label="Categories">
-            {categories.length === 0 ? (
-              <span style={{ color: "var(--muted)", fontSize: 13 }}>
-                No categories yet — add some under Categories.
-              </span>
-            ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                {categories.map((c) => (
-                  <label key={c.id} style={{ fontSize: 13, color: "var(--muted)" }}>
-                    <input
-                      type="checkbox"
-                      checked={form.category_ids.includes(c.id)}
-                      onChange={() => {
-                        const has = form.category_ids.includes(c.id);
-                        setForm({
-                          ...form,
-                          category_ids: has
-                            ? form.category_ids.filter((x) => x !== c.id)
-                            : [...form.category_ids, c.id],
-                        });
-                      }}
-                    />{" "}
-                    {c.name}
-                  </label>
-                ))}
-              </div>
-            )}
-          </Field>
 
           <Field label="Tags (comma-separated)">
             <input

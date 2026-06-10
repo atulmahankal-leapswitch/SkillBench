@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api, ApiError, Category } from "@/lib/client";
 import { Button, ErrorText, inputStyle, PageHeader, td, th } from "@/components/ui";
 
@@ -102,7 +103,11 @@ export default function CategoriesPage() {
             ) : (
               items.map((c) => (
                 <tr key={c.id}>
-                  <td style={td}>{c.name}</td>
+                  <td style={td}>
+                    <Link href={`/admin/questions?category_id=${c.id}`}>
+                      {c.name}
+                    </Link>
+                  </td>
                   <td style={td}>{c.counts.easy}</td>
                   <td style={td}>{c.counts.medium}</td>
                   <td style={td}>{c.counts.hard}</td>
