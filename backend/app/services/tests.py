@@ -149,10 +149,18 @@ async def update_test(
     if new_questions is not None:
         refs = [TestQuestionRef(**r) for r in new_questions]
         await _validate_question_ids(db, user, refs)
+        # Delete old rows first so re-adding the same (test, question) doesn't
+        # collide with the unique constraint during flush.
+        test.questions.clear()
+        await db.flush()
         test.questions = _membership_rows(refs)
     if new_blueprint is not None:
         items = [BlueprintItem(**b) for b in new_blueprint]
         await _validate_blueprint(db, user, items)
+        # Same: clear old blueprint rows before inserting the replacements
+        # (avoids uq_blueprint_cat_diff violation).
+        test.blueprints.clear()
+        await db.flush()
         test.blueprints = _blueprint_rows(items)
     await db.commit()
     return await get_test(db, user, test.id)
