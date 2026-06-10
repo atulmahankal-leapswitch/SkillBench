@@ -16,6 +16,7 @@ from app.api.routes import (
     results,
     schedules,
     tests,
+    users,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -33,3 +34,4 @@ api_router.include_router(integrations.router)
 api_router.include_router(public_api.router)
 api_router.include_router(analytics.router)
 api_router.include_router(branding.router)
+api_router.include_router(users.router)
