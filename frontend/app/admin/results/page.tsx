@@ -39,6 +39,12 @@ export default function ResultsPage() {
     events: { id: string; type: string; at: string; has_image: boolean }[];
     summary: Record<string, number>;
   } | null>(null);
+  const [integrity, setIntegrity] = useState<{
+    risk_score: number;
+    level: string;
+    max_similarity: number;
+    matches: { question_id: string; max_similarity: number; flagged: boolean }[];
+  } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -70,11 +76,14 @@ export default function ResultsPage() {
       setOverrides(ov);
       setFeedbacks(fb);
       try {
-        setProctor(
-          await api.get(`/results/${attemptId}/proctor`)
-        );
+        setProctor(await api.get(`/results/${attemptId}/proctor`));
       } catch {
         setProctor(null);
+      }
+      try {
+        setIntegrity(await api.get(`/results/${attemptId}/integrity`));
+      } catch {
+        setIntegrity(null);
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load detail");
@@ -266,6 +275,34 @@ export default function ResultsPage() {
               )}
             </div>
           ))}
+
+          {integrity && (
+            <div style={{ marginTop: 16 }}>
+              <h3 style={{ fontSize: 16 }}>Integrity</h3>
+              <p style={{ fontSize: 14 }}>
+                Risk:{" "}
+                <strong
+                  style={{
+                    color:
+                      integrity.level === "high"
+                        ? "#ff8a8a"
+                        : integrity.level === "medium"
+                          ? "#ffcf6b"
+                          : "#7ee787",
+                  }}
+                >
+                  {integrity.level} ({integrity.risk_score}/100)
+                </strong>{" "}
+                · max similarity {Math.round(integrity.max_similarity * 100)}%
+              </p>
+              {integrity.matches.filter((m) => m.flagged).length > 0 && (
+                <p style={{ color: "#ffb4b4", fontSize: 13 }}>
+                  ⚠ {integrity.matches.filter((m) => m.flagged).length} answer(s)
+                  highly similar to another submission.
+                </p>
+              )}
+            </div>
+          )}
 
           {proctor && proctor.events.length > 0 && (
             <div style={{ marginTop: 16 }}>

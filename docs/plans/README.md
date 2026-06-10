@@ -18,7 +18,7 @@ time; each is committed to GitHub when complete.
 | 08 | AI-assisted features               | ✅     | [plan](phase-08-ai-features.md)                 |
 | 09 | Integrations (API + webhooks)      | ✅     | [plan](phase-09-integrations.md)                |
 | 10 | Benchmarking & analytics           | ✅     | [plan](phase-10-analytics.md)                   |
-| 11 | Anti-plagiarism / cheat detection  | ⬜     | [plan](phase-11-anti-plagiarism.md)             |
+| 11 | Anti-plagiarism / cheat detection  | ✅     | [plan](phase-11-anti-plagiarism.md)             |
 | 12 | Candidate experience (mobile/brand)| ⬜     | [plan](phase-12-candidate-experience.md)        |
 
 ## How to work a phase
@@ -61,4 +61,6 @@ time; each is committed to GitHub when complete.
   webhooks with retries + delivery log, admin settings UI. Verified live.
 - **Phase 10** complete: analytics overview + per-test benchmarking (stats +
   decile distribution), analytics dashboard UI. Verified live.
-- **Next:** Phase 11 — Anti-plagiarism / cheat detection.
+- **Phase 11** complete: answer-similarity detection + integrity score
+  (similarity + proctoring signals), integrity panel in results UI. Verified live.
+- **Next:** Phase 12 — Candidate experience (mobile/branding).
