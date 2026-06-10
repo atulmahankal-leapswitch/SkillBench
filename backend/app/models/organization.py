@@ -23,6 +23,10 @@ class Organization(Base, TimestampMixin):
     primary_domain: Mapped[str] = mapped_column(
         CITEXT(), unique=True, nullable=False
     )
+    # White-label branding for the candidate experience.
+    display_name: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    logo_url: Mapped[str] = mapped_column(String(1024), default="", nullable=False)
+    brand_color: Mapped[str] = mapped_column(String(20), default="", nullable=False)
 
     users: Mapped[list["User"]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"

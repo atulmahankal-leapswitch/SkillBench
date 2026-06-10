@@ -19,7 +19,7 @@ time; each is committed to GitHub when complete.
 | 09 | Integrations (API + webhooks)      | ✅     | [plan](phase-09-integrations.md)                |
 | 10 | Benchmarking & analytics           | ✅     | [plan](phase-10-analytics.md)                   |
 | 11 | Anti-plagiarism / cheat detection  | ✅     | [plan](phase-11-anti-plagiarism.md)             |
-| 12 | Candidate experience (mobile/brand)| ⬜     | [plan](phase-12-candidate-experience.md)        |
+| 12 | Candidate experience (mobile/brand)| ✅     | [plan](phase-12-candidate-experience.md)        |
 
 ## How to work a phase
 
@@ -63,4 +63,9 @@ time; each is committed to GitHub when complete.
   decile distribution), analytics dashboard UI. Verified live.
 - **Phase 11** complete: answer-similarity detection + integrity score
   (similarity + proctoring signals), integrity panel in results UI. Verified live.
-- **Next:** Phase 12 — Candidate experience (mobile/branding).
+- **Phase 12** complete: white-label branding (org logo/name/colour) applied to
+  the candidate exam, mobile viewport, admin branding editor. Verified live.
+
+**🎉 All 13 phases (00–12) complete.** The core platform plus advanced features
+(code execution, proctoring, AI, integrations, analytics, anti-plagiarism,
+branding) are built, verified against a live stack, and pushed.

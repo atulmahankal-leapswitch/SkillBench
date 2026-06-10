@@ -6,6 +6,7 @@ from app.api.routes import (
     ai,
     analytics,
     auth,
+    branding,
     candidates,
     exam,
     health,
@@ -31,3 +32,4 @@ api_router.include_router(ai.router)
 api_router.include_router(integrations.router)
 api_router.include_router(public_api.router)
 api_router.include_router(analytics.router)
+api_router.include_router(branding.router)

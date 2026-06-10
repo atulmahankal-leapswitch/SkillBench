@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.attempt import Answer, Attempt
 from app.models.enums import AttemptStatus, QuestionType, ScheduleStatus
+from app.models.organization import Organization
 from app.models.schedule import Invitation, Schedule
 from app.models.test import Test
 from app.schemas.exam import (
@@ -92,6 +93,17 @@ async def _build_state(
     if attempt and attempt.expires_at and attempt.status == AttemptStatus.IN_PROGRESS:
         remaining = max(0, int((attempt.expires_at - now).total_seconds()))
 
+    org = (
+        await db.execute(
+            select(Organization).where(Organization.id == schedule.organization_id)
+        )
+    ).scalar_one()
+    branding = {
+        "display_name": org.display_name,
+        "logo_url": org.logo_url,
+        "brand_color": org.brand_color,
+    }
+
     return ExamState(
         status=AttemptStatus(attempt.status) if attempt else AttemptStatus.NOT_STARTED,
         test_title=schedule.test.title,
@@ -104,6 +116,7 @@ async def _build_state(
         questions=questions,
         answers=answers,
         proctoring=(schedule.test.settings or {}).get("proctoring", {}),
+        branding=branding,
     )
 
 

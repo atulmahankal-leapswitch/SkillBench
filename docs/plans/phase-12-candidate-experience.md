@@ -1,6 +1,24 @@
 # Phase 12 — Candidate Experience (Mobile & Branding)
 
-**Status:** ⬜ pending
+**Status:** ✅ completed
+
+## Delivered
+- White-label branding on `Organization` (display_name, logo_url, brand_color)
+  + migration 0008. Admin API `GET/PUT /api/branding` (read: any admin; write:
+  settings:manage).
+- Branding flows to the candidate exam state and is applied on the exam page
+  (logo + display name on the intro, brand colour on the primary action).
+- Candidate exam page: mobile-responsive layout, viewport meta, a webcam
+  notice on the intro when proctoring is enabled.
+- Admin settings gains a Branding editor.
+
+## Acceptance — verified
+Live: branding defaults empty; PUT updates persist; the public exam state
+exposes the updated display name + colour. ruff clean, 10 tests pass, frontend
+builds (/exam, /admin/settings).
+
+---
+## Original scope
 
 ## Goal
 

@@ -65,6 +65,8 @@ class ExamState(BaseModel):
     answers: dict[str, Any]
     # Per-test proctoring toggles (webcam, tab_switch, fullscreen, block_copy_paste).
     proctoring: dict[str, Any] = {}
+    # White-label branding (display_name, logo_url, brand_color).
+    branding: dict[str, Any] = {}
 
 
 class AnswerSubmit(BaseModel):

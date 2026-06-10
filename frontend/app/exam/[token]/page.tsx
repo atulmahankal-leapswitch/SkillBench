@@ -32,6 +32,11 @@ type ExamState = {
     fullscreen?: boolean;
     block_copy_paste?: boolean;
   };
+  branding: {
+    display_name?: string;
+    logo_url?: string;
+    brand_color?: string;
+  };
 };
 
 const card: React.CSSProperties = {
@@ -249,19 +254,41 @@ export default function ExamPage({
     );
   }
 
+  const brandColor = state.branding?.brand_color;
+  const beginBtn = brandColor
+    ? { ...primaryBtn, background: brandColor }
+    : primaryBtn;
+
   if (state.status === "not_started") {
     return (
       <Centered>
         <div style={{ ...card, maxWidth: 520 }}>
+          {state.branding?.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={state.branding.logo_url}
+              alt={state.branding.display_name || "logo"}
+              style={{ maxHeight: 48, marginBottom: 12 }}
+            />
+          ) : (
+            state.branding?.display_name && (
+              <div style={{ color: "var(--muted)", marginBottom: 8 }}>
+                {state.branding.display_name}
+              </div>
+            )
+          )}
           <h1 style={{ marginTop: 0 }}>{state.test_title}</h1>
           <p>Hello {state.candidate_name},</p>
           <ul style={{ color: "var(--muted)", lineHeight: 1.8 }}>
             <li>Duration: {state.duration_minutes} minutes</li>
             <li>The timer starts when you click Begin.</li>
             <li>Your answers save automatically.</li>
+            {state.proctoring?.webcam && (
+              <li>This assessment is proctored and will use your webcam.</li>
+            )}
           </ul>
           {error && <p style={{ color: "#ffb4b4" }}>{error}</p>}
-          <button onClick={start} style={primaryBtn}>
+          <button onClick={start} style={beginBtn}>
             Begin assessment
           </button>
         </div>

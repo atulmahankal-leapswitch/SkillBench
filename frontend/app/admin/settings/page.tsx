@@ -26,13 +26,31 @@ export default function SettingsPage() {
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [hookUrl, setHookUrl] = useState("");
   const [hookEvents, setHookEvents] = useState<string[]>([]);
+  const [brand, setBrand] = useState({
+    display_name: "",
+    logo_url: "",
+    brand_color: "",
+  });
+  const [brandSaved, setBrandSaved] = useState(false);
 
   async function load() {
     try {
       setKeys(await api.get<ApiKey[]>("/integrations/api-keys"));
       setHooks(await api.get<Webhook[]>("/integrations/webhooks"));
+      setBrand(await api.get("/branding"));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load");
+    }
+  }
+
+  async function saveBrand() {
+    setError(null);
+    try {
+      setBrand(await api.put("/branding", brand));
+      setBrandSaved(true);
+      setTimeout(() => setBrandSaved(false), 2000);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Save failed");
     }
   }
   useEffect(() => {
@@ -105,6 +123,32 @@ export default function SettingsPage() {
           </Button>
         </div>
       )}
+
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: 18 }}>Branding (candidate experience)</h2>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            style={{ ...inputStyle, maxWidth: 200 }}
+            placeholder="Display name"
+            value={brand.display_name}
+            onChange={(e) => setBrand({ ...brand, display_name: e.target.value })}
+          />
+          <input
+            style={{ ...inputStyle, maxWidth: 280 }}
+            placeholder="Logo URL"
+            value={brand.logo_url}
+            onChange={(e) => setBrand({ ...brand, logo_url: e.target.value })}
+          />
+          <input
+            style={{ ...inputStyle, maxWidth: 120 }}
+            placeholder="#4f8cff"
+            value={brand.brand_color}
+            onChange={(e) => setBrand({ ...brand, brand_color: e.target.value })}
+          />
+          <Button onClick={saveBrand}>Save branding</Button>
+          {brandSaved && <span style={{ color: "#7ee787" }}>Saved</span>}
+        </div>
+      </section>
 
       <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 18 }}>API keys</h2>
