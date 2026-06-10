@@ -83,5 +83,13 @@ phase-by-phase build plan.
 
 ## Status
 
-Active development. Current progress is tracked in
+**All 13 phases (00–12) complete** — foundation, Google-OAuth + RBAC, core CRUD,
+scheduling/invitations, candidate exam-taking, grading/results, Judge0 code
+execution, proctoring, multi-provider AI, API + webhooks, analytics,
+anti-plagiarism, and white-label branding. Each phase was verified against a
+live stack. Progress detail is in
 [`docs/plans/README.md`](docs/plans/README.md).
+
+To run real Google sign-in / AI / code execution, fill the matching keys in
+`.env` (`GOOGLE_*`, `ANTHROPIC_API_KEY`/`AI_PROVIDER`, `JUDGE0_ENABLED` +
+`compose.judge0.yml`).
