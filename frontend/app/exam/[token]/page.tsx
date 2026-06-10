@@ -31,6 +31,7 @@ type ExamState = {
     tab_switch?: boolean;
     fullscreen?: boolean;
     block_copy_paste?: boolean;
+    single_display?: boolean;
   };
   branding: { display_name?: string; logo_url?: string; brand_color?: string };
 };
@@ -58,6 +59,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [fsBlocked, setFsBlocked] = useState(false);
+  const [multiDisplay, setMultiDisplay] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [disconnected, setDisconnected] = useState(false);
   const offlineAtRef = useRef<number | null>(null);
@@ -192,6 +194,35 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     if (!document.fullscreenElement) setFsBlocked(true);
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, [active, proctoring.fullscreen, report]);
+
+  // Multiple-display detection: browsers can't disable extra monitors, but we
+  // can detect an extended desktop (screen.isExtended) and block until single.
+  useEffect(() => {
+    if (!active || !proctoring.single_display) return;
+    let reported = false;
+    const check = () => {
+      const extended = (window.screen as Screen & { isExtended?: boolean })
+        .isExtended;
+      setMultiDisplay(!!extended);
+      if (extended && !reported) {
+        reported = true;
+        report("multi_display");
+      } else if (!extended) {
+        reported = false;
+      }
+    };
+    check();
+    const id = setInterval(check, 3000);
+    const sc = window.screen as Screen & {
+      addEventListener?: (t: string, f: () => void) => void;
+      removeEventListener?: (t: string, f: () => void) => void;
+    };
+    sc.addEventListener?.("change", check);
+    return () => {
+      clearInterval(id);
+      sc.removeEventListener?.("change", check);
+    };
+  }, [active, proctoring.single_display, report]);
 
   // Camera + screen snapshots every 20s.
   useEffect(() => {
@@ -345,6 +376,19 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
             <button onClick={reenterFullscreen} style={btn(accent)}>
               Return to fullscreen
             </button>
+          </div>
+        </div>
+      )}
+
+      {multiDisplay && !fsBlocked && (
+        <div style={overlayStyle}>
+          <div style={{ ...cardStyle, maxWidth: 420, textAlign: "center" }}>
+            <div style={{ fontSize: 40 }}>🖥️</div>
+            <h2>One screen only</h2>
+            <p style={{ color: "var(--muted)" }}>
+              A second display was detected. Please disconnect extra monitors to
+              continue the assessment.
+            </p>
           </div>
         </div>
       )}

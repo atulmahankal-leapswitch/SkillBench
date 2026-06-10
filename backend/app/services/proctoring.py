@@ -27,6 +27,7 @@ ALLOWED_TYPES = {
     "webcam_denied",
     "screen_snapshot",
     "screen_denied",
+    "multi_display",
 }
 
 

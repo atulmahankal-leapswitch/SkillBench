@@ -29,6 +29,7 @@ type Proctoring = {
   tab_switch: boolean;
   fullscreen: boolean;
   block_copy_paste: boolean;
+  single_display: boolean;
 };
 
 // blueprint[categoryId][difficulty] = count (string for the input)
@@ -49,6 +50,7 @@ const EMPTY_PROCTORING: Proctoring = {
   tab_switch: false,
   fullscreen: false,
   block_copy_paste: false,
+  single_display: false,
 };
 
 function emptyForm(): FormState {
@@ -370,6 +372,7 @@ export default function TestsPage() {
                   ["tab_switch", "Tab-switch alerts"],
                   ["fullscreen", "Fullscreen"],
                   ["block_copy_paste", "Block copy/paste"],
+                  ["single_display", "Single display only"],
                 ] as [keyof Proctoring, string][]
               ).map(([key, label]) => (
                 <label key={key} style={{ fontSize: 13, color: "var(--muted)" }}>
