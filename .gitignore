@@ -36,3 +36,6 @@ caddy-config/
 # Logs
 *.log
 logs/
+
+# pnpm local store (created by host-side lockfile gen)
+frontend/.pnpm-store/
