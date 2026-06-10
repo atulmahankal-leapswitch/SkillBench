@@ -40,6 +40,7 @@ export default function SchedulesPage() {
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -131,8 +132,10 @@ export default function SchedulesPage() {
   function copyLink(s: Schedule) {
     if (!s.invitation) return;
     const url = `${window.location.origin}/exam/${s.invitation.token}`;
-    navigator.clipboard.writeText(url);
-    alert("Invite link copied:\n" + url);
+    navigator.clipboard?.writeText(url);
+    // Show "Copied" on this row's button briefly, then revert (no alert).
+    setCopiedId(s.id);
+    setTimeout(() => setCopiedId((c) => (c === s.id ? null : c)), 1500);
   }
 
   return (
@@ -193,7 +196,7 @@ export default function SchedulesPage() {
                   </td>
                   <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap" }}>
                     <Button variant="ghost" onClick={() => copyLink(s)}>
-                      Copy link
+                      {copiedId === s.id ? "Copied" : "Copy link"}
                     </Button>{" "}
                     {s.status === "scheduled" || s.status === "in_progress" ? (
                       <>
