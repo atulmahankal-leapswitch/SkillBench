@@ -302,13 +302,30 @@ function SettingsInner() {
               onChange={(v) => setBrand({ ...brand, logo_url: v })}
             />
           </Field>
-          <Field label="Brand colour (hex)">
-            <input
-              style={{ ...inputStyle, maxWidth: 160 }}
-              placeholder="#4f8cff"
-              value={brand.brand_color}
-              onChange={(e) => setBrand({ ...brand, brand_color: e.target.value })}
-            />
+          <Field label="Brand colour">
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="color"
+                aria-label="Brand colour picker"
+                style={{
+                  width: 44,
+                  height: 38,
+                  padding: 2,
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  background: "var(--card)",
+                  cursor: "pointer",
+                }}
+                value={/^#[0-9a-fA-F]{6}$/.test(brand.brand_color) ? brand.brand_color : "#4f8cff"}
+                onChange={(e) => setBrand({ ...brand, brand_color: e.target.value })}
+              />
+              <input
+                style={{ ...inputStyle, maxWidth: 160 }}
+                placeholder="#4f8cff"
+                value={brand.brand_color}
+                onChange={(e) => setBrand({ ...brand, brand_color: e.target.value })}
+              />
+            </div>
           </Field>
           <Button onClick={saveBrand}>Save branding</Button>
           {brandSaved && <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>}
