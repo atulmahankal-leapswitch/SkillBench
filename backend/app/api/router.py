@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     ai,
+    analytics,
     auth,
     candidates,
     exam,
@@ -29,3 +30,4 @@ api_router.include_router(results.router)
 api_router.include_router(ai.router)
 api_router.include_router(integrations.router)
 api_router.include_router(public_api.router)
+api_router.include_router(analytics.router)

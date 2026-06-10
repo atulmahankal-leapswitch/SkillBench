@@ -17,7 +17,7 @@ time; each is committed to GitHub when complete.
 | 07 | Proctoring                         | ✅     | [plan](phase-07-proctoring.md)                  |
 | 08 | AI-assisted features               | ✅     | [plan](phase-08-ai-features.md)                 |
 | 09 | Integrations (API + webhooks)      | ✅     | [plan](phase-09-integrations.md)                |
-| 10 | Benchmarking & analytics           | ⬜     | [plan](phase-10-analytics.md)                   |
+| 10 | Benchmarking & analytics           | ✅     | [plan](phase-10-analytics.md)                   |
 | 11 | Anti-plagiarism / cheat detection  | ⬜     | [plan](phase-11-anti-plagiarism.md)             |
 | 12 | Candidate experience (mobile/brand)| ⬜     | [plan](phase-12-candidate-experience.md)        |
 
@@ -59,4 +59,6 @@ time; each is committed to GitHub when complete.
   integration, question-gen UI. Verified live with stub.
 - **Phase 09** complete: API keys (hashed + scoped) + public v1 API, signed
   webhooks with retries + delivery log, admin settings UI. Verified live.
-- **Next:** Phase 10 — Benchmarking & analytics.
+- **Phase 10** complete: analytics overview + per-test benchmarking (stats +
+  decile distribution), analytics dashboard UI. Verified live.
+- **Next:** Phase 11 — Anti-plagiarism / cheat detection.
