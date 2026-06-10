@@ -72,8 +72,17 @@ def _set_session_cookies(response: Response, user: User) -> None:
     )
 
 
-def _login_redirect(error: str | None = None) -> RedirectResponse:
-    suffix = f"/login?{urlencode({'error': error})}" if error else "/admin"
+def _safe_next(next_path: str | None) -> str:
+    """Only allow internal absolute paths — guards against open redirects."""
+    if next_path and next_path.startswith("/") and not next_path.startswith("//"):
+        return next_path
+    return "/admin"
+
+
+def _login_redirect(
+    error: str | None = None, next_path: str = "/admin"
+) -> RedirectResponse:
+    suffix = f"/login?{urlencode({'error': error})}" if error else _safe_next(next_path)
     return RedirectResponse(
         f"{settings.app_base_url}{suffix}", status_code=status.HTTP_302_FOUND
     )
@@ -105,9 +114,10 @@ async def google_callback(
         return _login_redirect(error or "oauth_failed")
 
     try:
-        verify_state(state)
+        state_data = verify_state(state)
     except BadSignature:
         return _login_redirect("bad_state")
+    next_path = state_data.get("next", "/admin")
 
     try:
         profile = await google.exchange_code_for_profile(code)
@@ -123,7 +133,7 @@ async def google_callback(
     if not user.is_active:
         return _login_redirect("account_disabled")
 
-    response = _login_redirect()
+    response = _login_redirect(next_path=next_path)
     _set_session_cookies(response, user)
     return response
 

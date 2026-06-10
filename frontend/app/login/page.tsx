@@ -14,14 +14,22 @@ const ERRORS: Record<string, string> = {
   token_exchange_failed: "Could not complete sign-in with Google.",
 };
 
+// Only honor internal absolute paths — guards against open redirects.
+function safeNext(value: string | undefined): string {
+  return value && value.startsWith("/") && !value.startsWith("//")
+    ? value
+    : "/admin";
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; testmode?: string }>;
+  searchParams: Promise<{ error?: string; testmode?: string; redirect?: string }>;
 }) {
-  const { error, testmode } = await searchParams;
+  const { error, testmode, redirect } = await searchParams;
   const message = error ? (ERRORS[error] ?? "Sign-in failed.") : null;
   const isTestMode = testmode !== undefined;
+  const next = safeNext(redirect);
 
   return (
     <main
@@ -65,10 +73,10 @@ export default async function LoginPage({
         )}
 
         {isTestMode ? (
-          <PasswordForm />
+          <PasswordForm next={next} />
         ) : (
           <a
-            href={`${browserApiBase}/api/auth/google/login`}
+            href={`${browserApiBase}/api/auth/google/login?next=${encodeURIComponent(next)}`}
             style={{
               display: "block",
               marginTop: 20,

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { browserApiBase } from "@/lib/api";
 import { Button, ErrorText, Field, inputStyle } from "@/components/ui";
 
-export default function PasswordForm() {
+export default function PasswordForm({ next = "/admin" }: { next?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export default function PasswordForm() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.detail || "Login failed");
       }
-      window.location.href = "/admin";
+      window.location.href = next;
     } catch (e) {
       setError((e as Error).message);
     } finally {

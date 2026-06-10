@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { fetchCurrentUser } from "@/lib/api";
@@ -28,7 +28,8 @@ export default async function AdminLayout({
   const user = await fetchCurrentUser(cookieStore.toString());
 
   if (!user) {
-    redirect("/login");
+    const path = (await headers()).get("x-pathname") || "/admin";
+    redirect(`/login?redirect=${encodeURIComponent(path)}`);
   }
 
   const brandName =
