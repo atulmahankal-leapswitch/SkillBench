@@ -137,6 +137,14 @@ function CandidatesInner() {
   }
 
   async function remove(c: Candidate) {
+    if (c.schedule_count > 0) {
+      setError(
+        `${c.full_name} has ${c.schedule_count} scheduled test${
+          c.schedule_count > 1 ? "s" : ""
+        } and can't be deleted. Cancel or remove their schedules first.`,
+      );
+      return;
+    }
     if (!confirm(`Delete candidate ${c.full_name}?`)) return;
     try {
       await api.del(`/candidates/${c.id}`);

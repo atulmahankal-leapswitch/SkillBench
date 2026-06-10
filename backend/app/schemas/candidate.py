@@ -54,6 +54,7 @@ class CandidateOut(BaseModel):
     tags: list[str]
     notes: str
     assignees: list[AssigneeOut]
+    schedule_count: int = 0
     created_at: datetime
     updated_at: datetime
 

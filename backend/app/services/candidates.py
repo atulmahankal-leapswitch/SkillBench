@@ -4,10 +4,11 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.candidate import Candidate, user_candidate_assignments
+from app.models.schedule import Schedule
 from app.models.user import User
 from app.schemas.candidate import CandidateCreate, CandidateUpdate
 from app.services.pagination import paginate
@@ -61,7 +62,38 @@ async def list_candidates(
     if status_:
         stmt = stmt.where(Candidate.status == status_)
     stmt = stmt.order_by(Candidate.created_at.desc())
-    return await paginate(db, stmt, limit, offset)
+    items, total = await paginate(db, stmt, limit, offset)
+    await _annotate_schedule_counts(db, items)
+    return items, total
+
+
+async def _schedule_count(db: AsyncSession, candidate_id: uuid.UUID) -> int:
+    return (
+        await db.execute(
+            select(func.count())
+            .select_from(Schedule)
+            .where(Schedule.candidate_id == candidate_id)
+        )
+    ).scalar_one()
+
+
+async def _annotate_schedule_counts(
+    db: AsyncSession, candidates: list[Candidate]
+) -> None:
+    """Attach a transient `schedule_count` to each candidate (for CandidateOut)."""
+    ids = [c.id for c in candidates]
+    if not ids:
+        return
+    rows = (
+        await db.execute(
+            select(Schedule.candidate_id, func.count())
+            .where(Schedule.candidate_id.in_(ids))
+            .group_by(Schedule.candidate_id)
+        )
+    ).all()
+    counts = {cid: n for cid, n in rows}
+    for c in candidates:
+        c.schedule_count = counts.get(c.id, 0)
 
 
 async def get_candidate(
@@ -108,6 +140,12 @@ async def delete_candidate(
     db: AsyncSession, user: User, candidate_id: uuid.UUID
 ) -> None:
     candidate = await get_candidate(db, user, candidate_id)
+    if await _schedule_count(db, candidate.id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This candidate has scheduled tests and can't be deleted. "
+            "Cancel or remove their schedules first.",
+        )
     candidate.deleted_at = datetime.now(UTC)
     await db.commit()
 

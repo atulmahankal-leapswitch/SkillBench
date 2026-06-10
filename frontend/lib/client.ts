@@ -70,6 +70,7 @@ export type Candidate = {
   tags: string[];
   notes: string;
   assignees: { id: string; email: string; full_name: string }[];
+  schedule_count: number;
   created_at: string;
   updated_at: string;
 };
