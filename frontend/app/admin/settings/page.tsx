@@ -287,13 +287,24 @@ export default function SettingsPage() {
             </Field>
           )}
 
-          {ai.providers_needing_key.includes(ai.provider) && (
-            <Field label="API key">
+          {(ai.providers_needing_key.includes(ai.provider) ||
+            ai.provider === "claude_code_sdk") && (
+            <Field
+              label={
+                ai.provider === "claude_code_sdk"
+                  ? "API key (optional — or use container login below)"
+                  : "API key"
+              }
+            >
               <input
                 type="password"
                 style={inputStyle}
                 placeholder={
-                  ai.api_key_set ? ai.api_key_masked : "sk-… (required)"
+                  ai.api_key_set
+                    ? ai.api_key_masked
+                    : ai.provider === "claude_code_sdk"
+                      ? "sk-ant-… (optional)"
+                      : "sk-… (required)"
                 }
                 value={aiKey}
                 onChange={(e) => setAiKey(e.target.value)}

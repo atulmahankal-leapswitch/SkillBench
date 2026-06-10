@@ -58,7 +58,7 @@ def get_provider(cfg: AIConfig) -> AIProvider:
     if p == "claude_code_sdk":
         from app.services.ai.claude_code_sdk import ClaudeCodeSDKProvider
 
-        return ClaudeCodeSDKProvider(cfg.model)
+        return ClaudeCodeSDKProvider(cfg.model, cfg.api_key or settings.anthropic_api_key)
     if p == "openai":
         from app.services.ai.openai import OpenAIProvider
 
