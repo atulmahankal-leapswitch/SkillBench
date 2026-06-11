@@ -31,9 +31,12 @@ export default function RecordingPlayer({
   const [playing, setPlaying] = useState(false);
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(0);
-  // Camera PiP geometry (pixels, relative to the container).
-  const [pip, setPip] = useState({ x: 16, y: 16, w: 260 });
+  // Camera PiP geometry (pixels, relative to the container). Until the user
+  // drags it, it's anchored to the bottom-right corner (placed=false).
+  const [pip, setPip] = useState({ x: 16, y: 16, w: 260, placed: false });
+  const [isFs, setIsFs] = useState(false);
 
+  const fsRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const screenRef = useRef<HTMLVideoElement>(null);
   const cameraRef = useRef<HTMLVideoElement>(null);
@@ -55,24 +58,62 @@ export default function RecordingPlayer({
     return v;
   }, [view]);
 
+  // MediaRecorder webm files report duration=Infinity until you seek past the
+  // end. Force the browser to compute the real duration once metadata loads.
+  useEffect(() => {
+    const fix = (v: HTMLVideoElement | null) => {
+      if (!v) return undefined;
+      const onMeta = () => {
+        if (v.duration === Infinity || isNaN(v.duration)) {
+          const onSeeked = () => {
+            v.removeEventListener("seeked", onSeeked);
+            v.currentTime = 0;
+          };
+          v.addEventListener("seeked", onSeeked);
+          try {
+            v.currentTime = 1e101;
+          } catch {
+            /* ignore */
+          }
+        }
+      };
+      v.addEventListener("loadedmetadata", onMeta);
+      if (v.readyState >= 1) onMeta();
+      return () => v.removeEventListener("loadedmetadata", onMeta);
+    };
+    const cleanups = [fix(screenRef.current), fix(cameraRef.current)];
+    return () => cleanups.forEach((c) => c?.());
+  }, [screenUrl, cameraUrl]);
+
   // Track the primary video's time/duration for the seek bar.
   useEffect(() => {
     const p = primary();
     if (!p) return;
     const onTime = () => setCur(p.currentTime);
-    const onMeta = () => setDur(p.duration || 0);
+    const onDur = () => {
+      if (isFinite(p.duration)) setDur(p.duration);
+    };
     const onEnd = () => setPlaying(false);
     p.addEventListener("timeupdate", onTime);
-    p.addEventListener("loadedmetadata", onMeta);
+    p.addEventListener("loadedmetadata", onDur);
+    p.addEventListener("durationchange", onDur);
     p.addEventListener("ended", onEnd);
-    setDur(p.duration || 0);
+    onDur();
     setCur(p.currentTime || 0);
     return () => {
       p.removeEventListener("timeupdate", onTime);
-      p.removeEventListener("loadedmetadata", onMeta);
+      p.removeEventListener("loadedmetadata", onDur);
+      p.removeEventListener("durationchange", onDur);
       p.removeEventListener("ended", onEnd);
     };
   }, [primary, screenUrl, cameraUrl]);
+
+  // Track fullscreen so the layout can keep the video + control bar fitting.
+  useEffect(() => {
+    const onFs = () => setIsFs(document.fullscreenElement === fsRef.current);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
 
   // Pause everything when switching view; the user re-presses play.
   useEffect(() => {
@@ -105,7 +146,8 @@ export default function RecordingPlayer({
   }
 
   function fullscreen() {
-    containerRef.current?.requestFullscreen?.().catch(() => {});
+    // Fullscreen the wrapper (control bar + stage) so the controls stay visible.
+    fsRef.current?.requestFullscreen?.().catch(() => {});
   }
 
   // ── PiP drag / resize ──────────────────────────────────────────────────────
@@ -115,8 +157,12 @@ export default function RecordingPlayer({
     if (!rect) return;
     const sx = e.clientX;
     const sy = e.clientY;
-    const ox = pip.x;
-    const oy = pip.y;
+    // On the first drag, convert the bottom-right anchor to absolute x/y so it
+    // doesn't jump.
+    const wrap = e.currentTarget.getBoundingClientRect();
+    const ox = pip.placed ? pip.x : wrap.left - rect.left;
+    const oy = pip.placed ? pip.y : wrap.top - rect.top;
+    if (!pip.placed) setPip((p) => ({ ...p, placed: true, x: ox, y: oy }));
     const camH = (cameraRef.current?.clientHeight ?? pip.w * 0.6) || pip.w * 0.6;
     const move = (ev: PointerEvent) => {
       setPip((p) => ({
@@ -167,14 +213,30 @@ export default function RecordingPlayer({
   const hasBoth = !!(screenUrl && cameraUrl);
 
   return (
-    <div>
-      {/* Shared control bar (top) */}
+    <div
+      ref={fsRef}
+      style={{
+        background: "var(--bg)",
+        ...(isFs
+          ? {
+              height: "100vh",
+              display: "flex",
+              flexDirection: "column",
+              padding: 8,
+              boxSizing: "border-box",
+            }
+          : {}),
+      }}
+    >
+      {/* Shared control bar (top) — inside the fullscreen wrapper so it stays
+          visible in fullscreen. */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 10,
           marginBottom: 10,
+          padding: 2,
           flexWrap: "wrap",
         }}
       >
@@ -233,6 +295,15 @@ export default function RecordingPlayer({
           borderRadius: 8,
           overflow: "hidden",
           lineHeight: 0,
+          ...(isFs
+            ? {
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }
+            : {}),
         }}
       >
         {screenUrl && (
@@ -241,8 +312,13 @@ export default function RecordingPlayer({
             ref={screenRef}
             src={screenUrl}
             playsInline
+            onContextMenu={(e) => e.preventDefault()}
+            controlsList="nodownload noplaybackrate"
             style={{
-              width: "100%",
+              width: isFs ? "auto" : "100%",
+              maxWidth: "100%",
+              maxHeight: isFs ? "100%" : undefined,
+              objectFit: "contain",
               display: view === "camera" ? "none" : "block",
             }}
           />
@@ -255,8 +331,10 @@ export default function RecordingPlayer({
               view === "both"
                 ? {
                     position: "absolute",
-                    left: pip.x,
-                    top: pip.y,
+                    // Default to the bottom-right corner; switch to x/y once dragged.
+                    ...(pip.placed
+                      ? { left: pip.x, top: pip.y }
+                      : { right: 16, bottom: 16 }),
                     width: pip.w,
                     cursor: "move",
                     border: "2px solid rgba(255,255,255,.7)",
@@ -267,7 +345,8 @@ export default function RecordingPlayer({
                     background: "#000",
                   }
                 : {
-                    width: "100%",
+                    width: isFs ? "auto" : "100%",
+                    maxHeight: isFs ? "100%" : undefined,
                     display: view === "screen" ? "none" : "block",
                   }
             }
@@ -278,22 +357,29 @@ export default function RecordingPlayer({
               src={cameraUrl}
               playsInline
               muted={view === "both"}
-              style={{ width: "100%", display: "block" }}
+              onContextMenu={(e) => e.preventDefault()}
+              controlsList="nodownload noplaybackrate"
+              style={{
+                width: "100%",
+                maxHeight: isFs && view !== "both" ? "100%" : undefined,
+                objectFit: "contain",
+                display: "block",
+              }}
             />
             {view === "both" && (
               <div
                 data-resize="1"
                 onPointerDown={startResize}
-                title="Drag to resize"
+                title="Drag corner to resize"
                 style={{
                   position: "absolute",
                   right: 0,
                   bottom: 0,
-                  width: 16,
-                  height: 16,
+                  width: 22,
+                  height: 22,
                   cursor: "nwse-resize",
                   background:
-                    "linear-gradient(135deg, transparent 50%, rgba(255,255,255,.8) 50%)",
+                    "linear-gradient(135deg, transparent 45%, rgba(255,255,255,.9) 45%)",
                 }}
               />
             )}
