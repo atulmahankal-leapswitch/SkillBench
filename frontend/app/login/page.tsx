@@ -26,18 +26,18 @@ function safeNext(value: string | undefined): string {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; testmode?: string; redirect?: string }>;
+  searchParams: Promise<{ error?: string; passmode?: string; redirect?: string }>;
 }) {
-  const { error, testmode, redirect } = await searchParams;
+  const { error, passmode, redirect } = await searchParams;
   const message = error ? (ERRORS[error] ?? "Sign-in failed.") : null;
   const next = safeNext(redirect);
 
   const config = await fetchAuthConfig();
-  // Test-mode password login only appears with the explicit ?testmode URL hint
-  // (and only when the backend allows it). The Google button is always shown;
-  // when it isn't configured it links back here with an error instead of
-  // hitting the backend's raw 503.
-  const showPassword = config.password_login && testmode !== undefined;
+  // Password login only appears with the explicit ?passmode URL hint (and only
+  // when the backend allows it) — a fallback when Google OAuth isn't working.
+  // The Google button is always shown; when it isn't configured it links back
+  // here with an error instead of hitting the backend's raw 503.
+  const showPassword = config.password_login && passmode !== undefined;
   const googleHref = config.google
     ? `${browserApiBase}/api/auth/google/login?next=${encodeURIComponent(next)}`
     : "/login?error=google_not_configured";
