@@ -25,9 +25,8 @@ export default function RecordingPlayer({
   screenUrl: string | null;
   cameraUrl: string | null;
 }) {
-  const [view, setView] = useState<View>(
-    screenUrl ? "both" : "camera",
-  );
+  const [view, setView] = useState<View>("both");
+  const userPicked = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(0);
@@ -41,10 +40,13 @@ export default function RecordingPlayer({
   const screenRef = useRef<HTMLVideoElement>(null);
   const cameraRef = useRef<HTMLVideoElement>(null);
 
-  // If only one stream exists, force the corresponding single view.
+  // Default selection once we know which streams exist: Both when both are
+  // present, otherwise the single available one. Skipped after a manual pick.
   useEffect(() => {
-    if (!screenUrl && cameraUrl) setView("camera");
-    else if (screenUrl && !cameraUrl) setView("screen");
+    if (userPicked.current) return;
+    if (screenUrl && cameraUrl) setView("both");
+    else if (cameraUrl) setView("camera");
+    else if (screenUrl) setView("screen");
   }, [screenUrl, cameraUrl]);
 
   const primary = useCallback((): HTMLVideoElement | null => {
@@ -266,7 +268,10 @@ export default function RecordingPlayer({
           (["both", "screen", "camera"] as const).map((v) => (
             <button
               key={v}
-              onClick={() => setView(v)}
+              onClick={() => {
+                userPicked.current = true;
+                setView(v);
+              }}
               style={{
                 ...btn,
                 textTransform: "capitalize",
@@ -314,6 +319,7 @@ export default function RecordingPlayer({
             playsInline
             onContextMenu={(e) => e.preventDefault()}
             controlsList="nodownload noplaybackrate"
+            preload="auto"
             style={{
               width: isFs ? "auto" : "100%",
               maxWidth: "100%",
@@ -359,6 +365,7 @@ export default function RecordingPlayer({
               muted={view === "both"}
               onContextMenu={(e) => e.preventDefault()}
               controlsList="nodownload noplaybackrate"
+            preload="auto"
               style={{
                 width: "100%",
                 maxHeight: isFs && view !== "both" ? "100%" : undefined,
