@@ -384,35 +384,25 @@ function SettingsInner() {
             </Field>
           )}
 
-          {(ai.providers_needing_key.includes(ai.provider) ||
-            ai.provider === "claude_code_sdk") && (
-            <Field
-              label={
-                ai.provider === "claude_code_sdk"
-                  ? "API key (optional — or use container login below)"
-                  : "API key"
-              }
-            >
-              <input
-                type="password"
-                style={inputStyle}
-                placeholder={
-                  ai.api_key_set
-                    ? ai.api_key_masked
-                    : ai.provider === "claude_code_sdk"
-                      ? "sk-ant-… (optional)"
-                      : "sk-… (required)"
-                }
-                value={aiKey}
-                onChange={(e) => setAiKey(e.target.value)}
-              />
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                {ai.api_key_set
-                  ? "A key is set. Leave blank to keep it."
-                  : "Stored server-side and never shown again."}
-              </div>
-            </Field>
-          )}
+          {/* Claude Code SDK authenticates via the container (below), not an
+              API key field — so only show the key for key-based providers. */}
+          {ai.providers_needing_key.includes(ai.provider) &&
+            ai.provider !== "claude_code_sdk" && (
+              <Field label="API key">
+                <input
+                  type="password"
+                  style={inputStyle}
+                  placeholder={ai.api_key_set ? ai.api_key_masked : "sk-… (required)"}
+                  value={aiKey}
+                  onChange={(e) => setAiKey(e.target.value)}
+                />
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                  {ai.api_key_set
+                    ? "A key is set. Leave blank to keep it."
+                    : "Stored server-side and never shown again."}
+                </div>
+              </Field>
+            )}
 
           {ai.provider === "claude_code_sdk" && (
             <div
