@@ -645,16 +645,28 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
         </div>
       )}
 
-      {/* Top bar */}
-      <div style={topBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+      {/* Top bar: brand left · candidate + test centered · timer right */}
+      <div style={{ ...topBar, display: "grid", gridTemplateColumns: "1fr auto 1fr" }}>
+        <div style={{ justifySelf: "start" }}>
           <Brand state={state} compact />
-          <strong style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        </div>
+        <div style={{ textAlign: "center", minWidth: 0 }}>
+          <div style={{ fontWeight: 700, lineHeight: 1.2 }}>{state.candidate_name}</div>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--muted)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
             {state.test_title}
-          </strong>
+          </div>
         </div>
         <div
           style={{
+            justifySelf: "end",
             fontVariantNumeric: "tabular-nums",
             fontSize: 18,
             fontWeight: 700,
@@ -686,11 +698,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
                 <span style={{ color: "var(--muted)", fontSize: 13 }}>
                   {q.points} pt{q.points === 1 ? "" : "s"} · {q.type}
                 </span>
-                {q.difficulty && (
-                  <Chip>
-                    <span style={{ textTransform: "capitalize" }}>{q.difficulty}</span>
-                  </Chip>
-                )}
+                {q.difficulty && <DifficultyChip level={q.difficulty} />}
                 {q.categories?.map((c) => <Chip key={c}>{c}</Chip>)}
               </div>
               <p style={{ fontSize: 16, whiteSpace: "pre-wrap", marginTop: 0 }}>{q.prompt}</p>
@@ -982,6 +990,33 @@ function PermItem({ label, status }: { label: string; status: PermStatus }) {
       <span style={{ width: 18, textAlign: "center" }}>{icon}</span>
       <span>{label}</span>
     </div>
+  );
+}
+
+// Color-coded difficulty: easy → green, medium → amber, hard → red.
+const LEVEL_COLOR: Record<string, string> = {
+  easy: "#3fb950",
+  medium: "#d29922",
+  hard: "#f85149",
+};
+
+function DifficultyChip({ level }: { level: string }) {
+  const color = LEVEL_COLOR[level.toLowerCase()] ?? "var(--muted)";
+  return (
+    <span
+      style={{
+        background: `color-mix(in srgb, ${color} 18%, transparent)`,
+        border: `1px solid ${color}`,
+        color,
+        borderRadius: 999,
+        padding: "3px 11px",
+        fontSize: 13,
+        fontWeight: 600,
+        textTransform: "capitalize",
+      }}
+    >
+      {level}
+    </span>
   );
 }
 
