@@ -21,13 +21,26 @@ router = APIRouter(prefix="/results", tags=["results"])
 async def list_results(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("result:read")),
-    test_id: uuid.UUID | None = None,
-    passed: bool | None = None,
+    test_id: list[uuid.UUID] | None = Query(default=None),
+    result: str | None = Query(default=None, pattern="^(passed|failed|needs_review)$"),
+    min_percent: float | None = Query(default=None, ge=0, le=100),
+    q: str | None = None,
+    sort: str = Query(default="finished", pattern="^(finished|candidate|test|score)$"),
+    order: str = Query(default="desc", pattern="^(asc|desc)$"),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> Page[ResultSummary]:
     items, total = await svc.list_results(
-        db, user, test_id=test_id, passed=passed, limit=limit, offset=offset
+        db,
+        user,
+        test_ids=test_id,
+        result=result,
+        min_percent=min_percent,
+        q=q,
+        sort=sort,
+        order=order,
+        limit=limit,
+        offset=offset,
     )
     return Page(items=items, total=total, limit=limit, offset=offset)
 

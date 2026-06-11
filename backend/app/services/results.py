@@ -7,11 +7,12 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from fastapi import status as http
-from sqlalchemy import select
+from sqlalchemy import asc, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.models.attempt import Attempt
+from app.models.candidate import Candidate
 from app.models.category import Category, question_categories
 from app.models.question import Question
 from app.models.result import Result
@@ -45,22 +46,68 @@ async def _result_for(db: AsyncSession, attempt: Attempt) -> Result | None:
     ).scalar_one_or_none()
 
 
+_SORT_COLUMNS = {
+    "finished": Attempt.submitted_at,
+    "candidate": Candidate.full_name,
+    "test": Test.title,
+    "score": Result.percent,
+}
+
+
 async def list_results(
-    db: AsyncSession, user: User, *, test_id, passed, limit: int, offset: int
+    db: AsyncSession,
+    user: User,
+    *,
+    test_ids: list[uuid.UUID] | None = None,
+    result: str | None = None,
+    min_percent: float | None = None,
+    q: str | None = None,
+    sort: str = "finished",
+    order: str = "desc",
+    limit: int,
+    offset: int,
 ):
-    stmt = _attempt_query(user).where(Attempt.status.in_(["submitted", "expired"]))
-    if test_id:
-        stmt = stmt.join(Schedule, Attempt.schedule_id == Schedule.id).where(
-            Schedule.test_id == test_id
+    # Join Result + related tables so result/min-score/search/sort happen in
+    # SQL (correct pagination), not after fetching.
+    stmt = (
+        select(Attempt)
+        .join(Schedule, Attempt.schedule_id == Schedule.id)
+        .join(Test, Schedule.test_id == Test.id)
+        .join(Candidate, Schedule.candidate_id == Candidate.id)
+        .outerjoin(Result, Result.attempt_id == Attempt.id)
+        .where(
+            Attempt.organization_id == user.organization_id,
+            Attempt.status.in_(["submitted", "expired"]),
         )
-    stmt = stmt.order_by(Attempt.submitted_at.desc())
+        .options(
+            joinedload(Attempt.schedule).joinedload(Schedule.candidate),
+            joinedload(Attempt.schedule).joinedload(Schedule.test),
+        )
+    )
+    if test_ids:
+        stmt = stmt.where(Schedule.test_id.in_(test_ids))
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(Candidate.full_name.ilike(like), Candidate.email.ilike(like))
+        )
+    if result == "passed":
+        stmt = stmt.where(Result.passed.is_(True), Result.needs_review.is_(False))
+    elif result == "failed":
+        stmt = stmt.where(Result.passed.is_(False), Result.needs_review.is_(False))
+    elif result == "needs_review":
+        stmt = stmt.where(Result.needs_review.is_(True))
+    if min_percent is not None:
+        stmt = stmt.where(Result.percent >= min_percent)
+
+    col = _SORT_COLUMNS.get(sort, Attempt.submitted_at)
+    stmt = stmt.order_by(asc(col) if order == "asc" else desc(col))
+
     attempts, total = await paginate(db, stmt, limit, offset)
 
     rows: list[ResultSummary] = []
     for a in attempts:
         r = await _result_for(db, a)
-        if passed is not None and (r is None or r.passed != passed):
-            continue
         rows.append(
             ResultSummary(
                 attempt_id=a.id,
@@ -182,9 +229,7 @@ async def override_question(
 
 
 async def export_csv(db: AsyncSession, user: User) -> str:
-    rows, _ = await list_results(
-        db, user, test_id=None, passed=None, limit=10000, offset=0
-    )
+    rows, _ = await list_results(db, user, limit=10000, offset=0)
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(
