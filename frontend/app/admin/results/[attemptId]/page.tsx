@@ -5,6 +5,7 @@ import Link from "next/link";
 import { browserApiBase } from "@/lib/api";
 import { api, ApiError, QuestionResult, ResultDetail } from "@/lib/client";
 import { Badge, Button, ErrorText, inputStyle } from "@/components/ui";
+import { useUrlParam } from "@/lib/url";
 
 type Integrity = {
   risk_score: number;
@@ -59,6 +60,7 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
+  const [tab, setTab] = useUrlParam("tab", "result");
 
   async function load() {
     try {
@@ -165,6 +167,34 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
         <span style={{ color: "var(--muted)" }}>(pass {d.pass_mark}%)</span>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", marginBottom: 18 }}>
+        {[
+          { key: "result", label: "Result" },
+          { key: "watch", label: "Watch" },
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              background: "transparent",
+              border: "none",
+              borderBottom: `2px solid ${tab === t.key ? "var(--accent)" : "transparent"}`,
+              color: tab === t.key ? "var(--fg)" : "var(--muted)",
+              fontWeight: tab === t.key ? 700 : 500,
+              fontSize: 15,
+              padding: "8px 14px",
+              cursor: "pointer",
+              marginBottom: -1,
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "result" && (
+        <>
       {/* Remarks — per-category score by difficulty */}
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -195,68 +225,6 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Screen recording */}
-      {recordingUrl && (
-        <div style={card}>
-          <h3 style={sectionTitle}>Screen recording</h3>
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video
-            src={recordingUrl}
-            controls
-            style={{ width: "100%", borderRadius: 8, background: "#000" }}
-          />
-        </div>
-      )}
-
-      {/* Integrity */}
-      <div style={card}>
-        <h3 style={sectionTitle}>Integrity</h3>
-        {integrity ? (
-          <>
-            <p style={{ margin: "0 0 6px" }}>
-              Risk:{" "}
-              <strong
-                style={{
-                  color:
-                    integrity.level === "high"
-                      ? "#d83a3a"
-                      : integrity.level === "medium"
-                        ? "#d8a23a"
-                        : "#2ea043",
-                }}
-              >
-                {integrity.level} ({integrity.risk_score}/100)
-              </strong>{" "}
-              · max similarity {Math.round(integrity.max_similarity * 100)}%
-            </p>
-            {proctor && proctor.events.length > 0 && (
-              <>
-                <div style={{ color: "var(--muted)", fontSize: 13 }}>
-                  {Object.entries(proctor.summary).map(([k, v]) => `${k}: ${v}`).join(" · ")}
-                </div>
-                <div style={{ maxHeight: 160, overflow: "auto", marginTop: 6 }}>
-                  {proctor.events.map((e) => (
-                    <div key={e.id} style={{ fontSize: 12, color: "var(--muted)" }}>
-                      {new Date(e.at).toLocaleTimeString()} — {e.type}
-                      {e.has_image && (
-                        <>
-                          {" "}
-                          <a href="#" onClick={(ev) => { ev.preventDefault(); viewSnapshot(e.id); }}>
-                            snapshot
-                          </a>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        ) : (
-          <p style={{ color: "var(--muted)", margin: 0 }}>No integrity data.</p>
-        )}
       </div>
 
       {/* Questions */}
@@ -332,6 +300,76 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
           </div>
         );
       })}
+        </>
+      )}
+
+      {tab === "watch" && (
+        <>
+          {/* Screen recording */}
+          <div style={card}>
+            <h3 style={sectionTitle}>Screen recording</h3>
+            {recordingUrl ? (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video
+                src={recordingUrl}
+                controls
+                style={{ width: "100%", borderRadius: 8, background: "#000" }}
+              />
+            ) : (
+              <p style={{ color: "var(--muted)", margin: 0 }}>No recording.</p>
+            )}
+          </div>
+
+          {/* Integrity */}
+          <div style={card}>
+            <h3 style={sectionTitle}>Integrity</h3>
+            {integrity ? (
+              <>
+                <p style={{ margin: "0 0 6px" }}>
+                  Risk:{" "}
+                  <strong
+                    style={{
+                      color:
+                        integrity.level === "high"
+                          ? "#d83a3a"
+                          : integrity.level === "medium"
+                            ? "#d8a23a"
+                            : "#2ea043",
+                    }}
+                  >
+                    {integrity.level} ({integrity.risk_score}/100)
+                  </strong>{" "}
+                  · max similarity {Math.round(integrity.max_similarity * 100)}%
+                </p>
+                {proctor && proctor.events.length > 0 && (
+                  <>
+                    <div style={{ color: "var(--muted)", fontSize: 13 }}>
+                      {Object.entries(proctor.summary).map(([k, v]) => `${k}: ${v}`).join(" · ")}
+                    </div>
+                    <div style={{ maxHeight: 160, overflow: "auto", marginTop: 6 }}>
+                      {proctor.events.map((e) => (
+                        <div key={e.id} style={{ fontSize: 12, color: "var(--muted)" }}>
+                          {new Date(e.at).toLocaleTimeString()} — {e.type}
+                          {e.has_image && (
+                            <>
+                              {" "}
+                              <a href="#" onClick={(ev) => { ev.preventDefault(); viewSnapshot(e.id); }}>
+                                snapshot
+                              </a>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <p style={{ color: "var(--muted)", margin: 0 }}>No integrity data.</p>
+            )}
+          </div>
+        </>
+      )}
     </main>
   );
 }
