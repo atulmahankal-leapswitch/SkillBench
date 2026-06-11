@@ -82,21 +82,22 @@ async def upsert_user_from_google(
 
     if user is None:
         is_first = (await _org_user_count(db, org.id)) == 0
+        role_name = (
+            DEFAULT_FIRST_USER_ROLE if is_first else DEFAULT_NEW_USER_ROLE
+        )
+        role = await _role(db, role_name)
+        # Set roles in the constructor (in-memory) so appending to the new
+        # user's collection doesn't trigger an async lazy-load after flush.
         user = User(
             organization_id=org.id,
             email=profile.email,
             google_sub=profile.sub,
             full_name=profile.name,
             avatar_url=profile.picture,
+            roles=[role] if role else [],
         )
         db.add(user)
         await db.flush()
-        role_name = (
-            DEFAULT_FIRST_USER_ROLE if is_first else DEFAULT_NEW_USER_ROLE
-        )
-        role = await _role(db, role_name)
-        if role:
-            user.roles.append(role)
     else:
         # Keep profile fields fresh on every login.
         user.google_sub = profile.sub
