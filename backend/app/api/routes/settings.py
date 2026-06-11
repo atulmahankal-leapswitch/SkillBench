@@ -130,6 +130,7 @@ def _sso_out(org: Organization) -> SSOSettingsOut:
     return SSOSettingsOut(
         google_client_id=org.google_oauth_client_id,
         google_client_secret_set=bool(org.google_oauth_client_secret),
+        google_domain=org.google_oauth_domain,
         redirect_uri=app_settings.google_oauth_redirect_uri,
     )
 
@@ -150,6 +151,7 @@ async def update_sso_settings(
 ) -> SSOSettingsOut:
     org = await _org(db, user)
     org.google_oauth_client_id = data.google_client_id.strip()
+    org.google_oauth_domain = data.google_domain.strip().lstrip("@").lower()
     if data.google_client_secret == CLEAR:
         org.google_oauth_client_secret = ""
     elif data.google_client_secret:

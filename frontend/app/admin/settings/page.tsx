@@ -130,8 +130,14 @@ function SettingsInner() {
   const [sso, setSso] = useState<{
     google_client_id: string;
     google_client_secret_set: boolean;
+    google_domain: string;
     redirect_uri: string;
-  }>({ google_client_id: "", google_client_secret_set: false, redirect_uri: "" });
+  }>({
+    google_client_id: "",
+    google_client_secret_set: false,
+    google_domain: "",
+    redirect_uri: "",
+  });
   const [ssoSecret, setSsoSecret] = useState("");
   const [ssoSaved, setSsoSaved] = useState(false);
 
@@ -231,7 +237,10 @@ function SettingsInner() {
   async function saveSso() {
     setError(null);
     try {
-      const body: Record<string, unknown> = { google_client_id: sso.google_client_id };
+      const body: Record<string, unknown> = {
+        google_client_id: sso.google_client_id,
+        google_domain: sso.google_domain,
+      };
       if (ssoSecret) body.google_client_secret = ssoSecret;
       setSso(await api.put("/settings/sso", body));
       setSsoSecret("");
@@ -630,6 +639,21 @@ function SettingsInner() {
               value={ssoSecret}
               onChange={(e) => setSsoSecret(e.target.value)}
             />
+          </Field>
+          <Field label="Organization domain (Google-only login)">
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ color: "var(--muted)" }}>@</span>
+              <input
+                style={inputStyle}
+                placeholder="example.com"
+                value={sso.google_domain}
+                onChange={(e) => setSso({ ...sso, google_domain: e.target.value })}
+              />
+            </div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+              Only emails on this domain can sign in with Google. Leave empty to
+              allow any domain permitted by the server.
+            </div>
           </Field>
           <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
             {sso.google_client_id

@@ -81,21 +81,35 @@ async def exchange_code_for_profile(
     )
 
 
-async def resolve_credentials(db: AsyncSession) -> tuple[str, str]:
-    """Google OAuth client id/secret: prefer an org-configured pair (set in
-    Settings), else fall back to the env-configured values. The Google project
-    is app-global, so any org's configured credentials are used for login."""
-    row = (
+async def _configured_org(db: AsyncSession):
+    """The org whose Google OAuth client id is set (app-global Google project)."""
+    return (
         await db.execute(
             select(
                 Organization.google_oauth_client_id,
                 Organization.google_oauth_client_secret,
+                Organization.google_oauth_domain,
             ).where(Organization.google_oauth_client_id != "")
         )
     ).first()
+
+
+async def resolve_credentials(db: AsyncSession) -> tuple[str, str]:
+    """Google OAuth client id/secret: prefer an org-configured pair (set in
+    Settings), else fall back to the env-configured values."""
+    row = await _configured_org(db)
     if row and row[0]:
         return row[0], row[1]
     return settings.google_client_id, settings.google_client_secret
+
+
+async def resolve_allowed_domains(db: AsyncSession) -> list[str]:
+    """Allowed sign-in email domains: the org-configured 'Organization domain'
+    if set, else the env-configured admin domains."""
+    row = await _configured_org(db)
+    if row and row[2]:
+        return [row[2].lower()]
+    return settings.admin_email_domains
 
 
 async def is_configured(db: AsyncSession) -> bool:
@@ -107,5 +121,6 @@ def email_domain(email: str) -> str:
     return email.rsplit("@", 1)[-1].lower()
 
 
-def is_allowed_domain(email: str) -> bool:
-    return email_domain(email) in settings.admin_email_domains
+def is_allowed_domain(email: str, domains: list[str] | None = None) -> bool:
+    allowed = domains if domains is not None else settings.admin_email_domains
+    return email_domain(email) in allowed

@@ -57,6 +57,10 @@ class Organization(Base, TimestampMixin):
     google_oauth_client_secret: Mapped[str] = mapped_column(
         String(255), default="", nullable=False
     )
+    # Restrict Google sign-in to this email domain (overrides env when set).
+    google_oauth_domain: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False
+    )
 
     users: Mapped[list["User"]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"

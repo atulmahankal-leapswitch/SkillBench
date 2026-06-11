@@ -133,7 +133,8 @@ async def google_callback(
 
     if not profile.email_verified:
         return _login_redirect("email_unverified")
-    if not google.is_allowed_domain(profile.email):
+    allowed_domains = await google.resolve_allowed_domains(db)
+    if not google.is_allowed_domain(profile.email, allowed_domains):
         return _login_redirect("domain_not_allowed")
 
     user = await upsert_user_from_google(db, profile)
