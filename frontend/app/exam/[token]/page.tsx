@@ -81,9 +81,14 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
   const [entered, setEntered] = useState(false);
   const [gateBusy, setGateBusy] = useState(false);
   const [gateError, setGateError] = useState<string | null>(null);
-  const [perm, setPerm] = useState<{ camera: PermStatus; screen: PermStatus }>({
+  const [perm, setPerm] = useState<{
+    camera: PermStatus;
+    screen: PermStatus;
+    display: PermStatus;
+  }>({
     camera: "idle",
     screen: "idle",
+    display: "idle",
   });
 
   const accent = state?.branding?.brand_color || "#4f8cff";
@@ -440,6 +445,20 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       screenStreamRef.current = scr;
       setPerm((p) => ({ ...p, screen: "granted" }));
     }
+
+    // Single-display: block the start (like a denied permission) if an
+    // extended desktop / second monitor is detected.
+    if (proctoring.single_display) {
+      const extended = (window.screen as Screen & { isExtended?: boolean })
+        .isExtended;
+      if (extended) {
+        setPerm((p) => ({ ...p, display: "denied" }));
+        throw new Error(
+          "A second display was detected. Disconnect extra monitors to start the assessment.",
+        );
+      }
+      setPerm((p) => ({ ...p, display: "granted" }));
+    }
   }
 
   // Gate: check permissions (and fullscreen), then start or resume the exam.
@@ -514,6 +533,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     const resuming = state.status === "in_progress";
     const needCam = !!proctoring.webcam;
     const needScreen = !!(proctoring.webcam || proctoring.record_screen);
+    const needSingle = !!proctoring.single_display;
     const rmm = String(Math.floor(remaining / 60)).padStart(2, "0");
     const rss = String(remaining % 60).padStart(2, "0");
     return (
@@ -533,7 +553,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
             {state.proctoring?.tab_switch && <Chip>👁 Tab monitored</Chip>}
           </div>
 
-          {(needCam || needScreen) && (
+          {(needCam || needScreen || needSingle) && (
             <div style={{ margin: "8px 0 16px" }}>
               <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 6 }}>
                 Before you {resuming ? "continue" : "begin"}, we need:
@@ -544,6 +564,9 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
                   label="Screen sharing — your entire screen"
                   status={perm.screen}
                 />
+              )}
+              {needSingle && (
+                <PermItem label="Single display (no extra monitors)" status={perm.display} />
               )}
             </div>
           )}
