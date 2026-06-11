@@ -148,9 +148,40 @@ export default function RecordingPlayer({
   }
 
   function fullscreen() {
-    // Fullscreen the wrapper (control bar + stage) so the controls stay visible.
-    fsRef.current?.requestFullscreen?.().catch(() => {});
+    // Toggle: the wrapper (control bar + stage) so the controls stay visible.
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else fsRef.current?.requestFullscreen?.().catch(() => {});
   }
+
+  // Keep the camera PiP placed sensibly: bottom-right by default, and clamped
+  // within the stage whenever it resizes (e.g. entering/leaving fullscreen) so
+  // a camera dragged while fullscreen doesn't end up off-screen afterwards.
+  const reposition = useCallback(() => {
+    const c = containerRef.current;
+    if (!c) return;
+    const W = c.clientWidth;
+    const H = c.clientHeight;
+    setPip((p) => {
+      const camH = cameraRef.current?.clientHeight || p.w * 0.6;
+      if (!p.placed) {
+        return { ...p, x: Math.max(0, W - p.w - 16), y: Math.max(0, H - camH - 16) };
+      }
+      return {
+        ...p,
+        x: clamp(p.x, 0, Math.max(0, W - p.w)),
+        y: clamp(p.y, 0, Math.max(0, H - camH)),
+      };
+    });
+  }, []);
+
+  useEffect(() => {
+    const c = containerRef.current;
+    if (!c) return;
+    reposition();
+    const ro = new ResizeObserver(() => reposition());
+    ro.observe(c);
+    return () => ro.disconnect();
+  }, [reposition, isFs, view, pip.w, pip.placed, screenUrl, cameraUrl]);
 
   // ── PiP drag / resize ──────────────────────────────────────────────────────
   function startDrag(e: React.PointerEvent) {
@@ -159,12 +190,9 @@ export default function RecordingPlayer({
     if (!rect) return;
     const sx = e.clientX;
     const sy = e.clientY;
-    // On the first drag, convert the bottom-right anchor to absolute x/y so it
-    // doesn't jump.
-    const wrap = e.currentTarget.getBoundingClientRect();
-    const ox = pip.placed ? pip.x : wrap.left - rect.left;
-    const oy = pip.placed ? pip.y : wrap.top - rect.top;
-    if (!pip.placed) setPip((p) => ({ ...p, placed: true, x: ox, y: oy }));
+    const ox = pip.x;
+    const oy = pip.y;
+    if (!pip.placed) setPip((p) => ({ ...p, placed: true }));
     const camH = (cameraRef.current?.clientHeight ?? pip.w * 0.6) || pip.w * 0.6;
     const move = (ev: PointerEvent) => {
       setPip((p) => ({
@@ -337,10 +365,10 @@ export default function RecordingPlayer({
               view === "both"
                 ? {
                     position: "absolute",
-                    // Default to the bottom-right corner; switch to x/y once dragged.
-                    ...(pip.placed
-                      ? { left: pip.x, top: pip.y }
-                      : { right: 16, bottom: 16 }),
+                    // Always top-left anchored (reposition() keeps it
+                    // bottom-right by default) so the resize corner is free.
+                    left: pip.x,
+                    top: pip.y,
                     width: pip.w,
                     cursor: "move",
                     border: "2px solid rgba(255,255,255,.7)",
