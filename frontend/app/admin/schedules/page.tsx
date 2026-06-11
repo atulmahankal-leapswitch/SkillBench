@@ -344,6 +344,11 @@ function SchedulesCalendar() {
             {new Date(selected.start_at).toLocaleString()} →{" "}
             {new Date(selected.end_at).toLocaleString()}
           </p>
+          {selected.finished_at && (
+            <p style={{ color: "var(--muted)", fontSize: 13, margin: "2px 0 0" }}>
+              Completed {new Date(selected.finished_at).toLocaleString()}
+            </p>
+          )}
           <p style={{ marginBottom: 14 }}>
             <Badge>{selected.status}</Badge>
           </p>

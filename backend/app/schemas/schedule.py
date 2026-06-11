@@ -55,6 +55,8 @@ class ScheduleOut(BaseModel):
     invitation: InvitationOut | None
     # Set when a finished (submitted/expired) attempt exists → link to results.
     attempt_id: uuid.UUID | None = None
+    # When the attempt was finished (submitted/auto-submitted).
+    finished_at: datetime | None = None
     created_at: datetime
 
 

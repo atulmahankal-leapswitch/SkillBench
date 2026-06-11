@@ -421,10 +421,32 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
                   </strong>{" "}
                   · max similarity {Math.round(integrity.max_similarity * 100)}%
                 </p>
+
+                {/* Proctoring event breakdown — from the integrity payload, so
+                    it shows even if the events timeline below is unavailable. */}
+                {Object.keys(integrity.proctoring ?? {}).length > 0 && (
+                  <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 6 }}>
+                    {Object.entries(integrity.proctoring)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(" · ")}
+                  </div>
+                )}
+
+                {/* Flagged answer-similarity matches */}
+                {(integrity.matches ?? []).filter((m) => m.flagged).length > 0 && (
+                  <div style={{ fontSize: 13, marginBottom: 6 }}>
+                    <strong>Flagged similarity:</strong>{" "}
+                    {integrity.matches
+                      .filter((m) => m.flagged)
+                      .map((m) => `${Math.round(m.max_similarity * 100)}%`)
+                      .join(", ")}
+                  </div>
+                )}
+
                 {proctor && proctor.events.length > 0 && (
                   <>
                     <div style={{ color: "var(--muted)", fontSize: 13 }}>
-                      {Object.entries(proctor.summary).map(([k, v]) => `${k}: ${v}`).join(" · ")}
+                      Timeline ({proctor.events.length} events):
                     </div>
                     <div style={{ maxHeight: 160, overflow: "auto", marginTop: 6 }}>
                       {proctor.events.map((e) => (

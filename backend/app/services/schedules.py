@@ -106,15 +106,17 @@ async def _annotate_attempts(db: AsyncSession, schedules: list[Schedule]) -> Non
         return
     rows = (
         await db.execute(
-            select(Attempt.schedule_id, Attempt.id).where(
+            select(Attempt.schedule_id, Attempt.id, Attempt.submitted_at).where(
                 Attempt.schedule_id.in_(ids),
                 Attempt.status.in_(["submitted", "expired"]),
             )
         )
     ).all()
-    by_schedule = {sid: aid for sid, aid in rows}
+    by_schedule = {sid: (aid, fin) for sid, aid, fin in rows}
     for s in schedules:
-        s.attempt_id = by_schedule.get(s.id)
+        aid, fin = by_schedule.get(s.id, (None, None))
+        s.attempt_id = aid
+        s.finished_at = fin
 
 
 async def get_schedule(db: AsyncSession, user: User, schedule_id: uuid.UUID) -> Schedule:
