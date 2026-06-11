@@ -12,6 +12,8 @@ const ERRORS: Record<string, string> = {
   bad_state: "Sign-in session expired. Please try again.",
   oauth_failed: "Sign-in was cancelled or failed.",
   token_exchange_failed: "Could not complete sign-in with Google.",
+  google_not_configured:
+    "Google sign-in isn't configured yet. An administrator must set it up in Settings → Login / SSO.",
 };
 
 // Only honor internal absolute paths — guards against open redirects.
@@ -32,9 +34,13 @@ export default async function LoginPage({
 
   const config = await fetchAuthConfig();
   // Test-mode password login only appears with the explicit ?testmode URL hint
-  // (and only when the backend allows it). Google shows when it's configured.
+  // (and only when the backend allows it). The Google button is always shown;
+  // when it isn't configured it links back here with an error instead of
+  // hitting the backend's raw 503.
   const showPassword = config.password_login && testmode !== undefined;
-  const showGoogle = config.google;
+  const googleHref = config.google
+    ? `${browserApiBase}/api/auth/google/login?next=${encodeURIComponent(next)}`
+    : "/login?error=google_not_configured";
 
   return (
     <main
@@ -77,39 +83,26 @@ export default async function LoginPage({
           </p>
         )}
 
-        {showGoogle && (
-          <a
-            href={`${browserApiBase}/api/auth/google/login?next=${encodeURIComponent(next)}`}
-            style={{
-              display: "block",
-              marginTop: 20,
-              padding: "12px 16px",
-              background: "var(--accent)",
-              color: "#fff",
-              borderRadius: 8,
-              fontWeight: 600,
-              textDecoration: "none",
-            }}
-          >
-            Continue with Google
-          </a>
-        )}
+        <a
+          href={googleHref}
+          style={{
+            display: "block",
+            marginTop: 20,
+            padding: "12px 16px",
+            background: "var(--accent)",
+            color: "#fff",
+            borderRadius: 8,
+            fontWeight: 600,
+            textDecoration: "none",
+          }}
+        >
+          Continue with Google
+        </a>
 
         {showPassword && <PasswordForm next={next} />}
 
-        {!showGoogle && !showPassword && (
-          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 18 }}>
-            No sign-in method is configured. An administrator must set up Google
-            OAuth in Settings → Login / SSO.
-          </p>
-        )}
-
         <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 18 }}>
-          {showGoogle
-            ? "Restricted to your organisation's email domain."
-            : showPassword
-              ? "Test-mode bootstrap login (local setup only)."
-              : ""}
+          Restricted to your organisation&apos;s email domain.
         </p>
       </div>
     </main>
