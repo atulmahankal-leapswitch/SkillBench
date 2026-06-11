@@ -211,9 +211,10 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     };
   }, [live, proctoring.block_copy_paste, report]);
 
-  // Fullscreen enforcement: if the candidate leaves fullscreen, block until they return.
+  // Fullscreen enforcement: the test always runs in fullscreen. If the
+  // candidate isn't in fullscreen (or leaves it), block until they return.
   useEffect(() => {
-    if (!live || !proctoring.fullscreen) return;
+    if (!live) return;
     const onFs = () => {
       if (!document.fullscreenElement) {
         setFsBlocked(true);
@@ -225,7 +226,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     document.addEventListener("fullscreenchange", onFs);
     if (!document.fullscreenElement) setFsBlocked(true);
     return () => document.removeEventListener("fullscreenchange", onFs);
-  }, [live, proctoring.fullscreen, report]);
+  }, [live, report]);
 
   // Continuous screen recording: record the whole screen and upload chunks,
   // reusing the screen stream captured at the permission gate. Chunks that fail
@@ -412,9 +413,10 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     setGateBusy(true);
     try {
       await acquirePermissions();
-      if (proctoring.fullscreen) {
-        await document.documentElement.requestFullscreen?.().catch(() => {});
-      }
+      // The test must run in fullscreen. Try here; if the browser rejects it
+      // (e.g. the click's activation was consumed by the media prompt), the
+      // fullscreen overlay below catches it and offers one-click re-entry.
+      await document.documentElement.requestFullscreen?.().catch(() => {});
       if (state?.status === "not_started") {
         applyState(await call(`${token}/start`, "POST"));
       }
@@ -488,7 +490,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0" }}>
             <Chip>⏱ {resuming ? `${rmm}:${rss} left` : `${state.duration_minutes} min`}</Chip>
             {needCam && <Chip>📷 Camera & screen</Chip>}
-            {state.proctoring?.fullscreen && <Chip>⛶ Fullscreen</Chip>}
+            <Chip>⛶ Fullscreen</Chip>
             {state.proctoring?.tab_switch && <Chip>👁 Tab monitored</Chip>}
           </div>
 
