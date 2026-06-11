@@ -433,13 +433,39 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     };
   }, [live, proctoring.webcam, report]);
 
+  // A stream is only reusable if its video track is still live — if the
+  // candidate clicked the browser's "Stop sharing", the track ends and we must
+  // re-acquire it on the next (re)scan instead of starting without it.
+  function isLive(s: MediaStream | null): boolean {
+    return !!s && s.getVideoTracks().some((t) => t.readyState === "live");
+  }
+  function drop(ref: React.MutableRefObject<MediaStream | null>) {
+    ref.current?.getTracks().forEach((t) => t.stop());
+    ref.current = null;
+  }
+
   // Acquire the required permissions. Screen capture must be the ENTIRE screen
   // (displaySurface "monitor"), not a window or browser tab.
   async function acquirePermissions() {
     const needCam = !!proctoring.webcam;
     const needScreen = !!(proctoring.webcam || proctoring.record_screen);
 
-    if (needCam && !camStreamRef.current) {
+    // Single-display first — fail fast on a second monitor before starting any
+    // camera/screen capture, so we don't begin sharing only to error out.
+    if (proctoring.single_display) {
+      const extended = (window.screen as Screen & { isExtended?: boolean })
+        .isExtended;
+      if (extended) {
+        setPerm((p) => ({ ...p, display: "denied" }));
+        throw new Error(
+          "A second display was detected. Disconnect extra monitors to start the assessment.",
+        );
+      }
+      setPerm((p) => ({ ...p, display: "granted" }));
+    }
+
+    if (needCam && !isLive(camStreamRef.current)) {
+      drop(camStreamRef);
       try {
         camStreamRef.current = await navigator.mediaDevices.getUserMedia({
           video: true,
@@ -451,7 +477,8 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       }
     }
 
-    if (needScreen && !screenStreamRef.current) {
+    if (needScreen && !isLive(screenStreamRef.current)) {
+      drop(screenStreamRef);
       let scr: MediaStream;
       try {
         scr = await navigator.mediaDevices.getDisplayMedia({
@@ -477,20 +504,6 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       }
       screenStreamRef.current = scr;
       setPerm((p) => ({ ...p, screen: "granted" }));
-    }
-
-    // Single-display: block the start (like a denied permission) if an
-    // extended desktop / second monitor is detected.
-    if (proctoring.single_display) {
-      const extended = (window.screen as Screen & { isExtended?: boolean })
-        .isExtended;
-      if (extended) {
-        setPerm((p) => ({ ...p, display: "denied" }));
-        throw new Error(
-          "A second display was detected. Disconnect extra monitors to start the assessment.",
-        );
-      }
-      setPerm((p) => ({ ...p, display: "granted" }));
     }
   }
 
@@ -630,9 +643,13 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
           >
             {gateBusy
               ? "Checking permissions…"
-              : resuming
-                ? "Continue test →"
-                : "Begin assessment →"}
+              : gateError
+                ? resuming
+                  ? "Rescan & continue test →"
+                  : "Rescan & begin →"
+                : resuming
+                  ? "Continue test →"
+                  : "Begin assessment →"}
           </button>
         </div>
       </Centered>
