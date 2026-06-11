@@ -22,11 +22,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Apply the saved theme before paint to avoid a flash. */}
+        {/* Resolve the theme before paint to avoid a flash. Preference is
+            system | light | dark (default system → follow the OS). */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{document.documentElement.dataset.theme=localStorage.getItem('sb-theme')||'dark'}catch(e){document.documentElement.dataset.theme='dark'}",
+              "try{var p=localStorage.getItem('sb-theme')||'system';var d=p==='dark'||(p==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.dataset.theme=d?'dark':'light';r.dataset.themePref=p;}catch(e){document.documentElement.dataset.theme='dark';}",
           }}
         />
       </head>

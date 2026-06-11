@@ -2,19 +2,50 @@
 
 import { useEffect, useState } from "react";
 
+type Pref = "system" | "light" | "dark";
+
+const ORDER: Pref[] = ["system", "light", "dark"];
+const ICON: Record<Pref, string> = { system: "🖥️", light: "☀️", dark: "🌙" };
+const LABEL: Record<Pref, string> = { system: "System", light: "Light", dark: "Dark" };
+
+function systemDark() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+}
+
+function resolve(pref: Pref): "dark" | "light" {
+  if (pref === "system") return systemDark() ? "dark" : "light";
+  return pref;
+}
+
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  // Default to "system"; the pre-paint script in layout sets data-theme-pref.
+  const [pref, setPref] = useState<Pref>("system");
 
   useEffect(() => {
-    const saved =
-      (document.documentElement.dataset.theme as "dark" | "light") || "dark";
-    setTheme(saved);
+    const saved = document.documentElement.dataset.themePref as Pref | undefined;
+    if (saved && ORDER.includes(saved)) setPref(saved);
   }, []);
 
-  function toggle() {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    document.documentElement.dataset.theme = next;
+  // Apply the resolved theme whenever the preference changes, and (when on
+  // "system") keep following the OS as it changes.
+  useEffect(() => {
+    document.documentElement.dataset.theme = resolve(pref);
+    document.documentElement.dataset.themePref = pref;
+    if (pref !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => {
+      document.documentElement.dataset.theme = systemDark() ? "dark" : "light";
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [pref]);
+
+  function cycle() {
+    const next = ORDER[(ORDER.indexOf(pref) + 1) % ORDER.length];
+    setPref(next);
     try {
       localStorage.setItem("sb-theme", next);
     } catch {
@@ -24,21 +55,25 @@ export default function ThemeToggle() {
 
   return (
     <button
-      onClick={toggle}
-      title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      aria-label="Toggle theme"
+      onClick={cycle}
+      title={`Theme: ${LABEL[pref]} (click to change)`}
+      aria-label={`Theme: ${LABEL[pref]}`}
       style={{
         background: "transparent",
         border: "1px solid var(--border)",
         color: "var(--fg)",
         borderRadius: 8,
-        width: 36,
         height: 36,
+        padding: "0 10px",
         cursor: "pointer",
-        fontSize: 16,
+        fontSize: 13,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
       }}
     >
-      {theme === "dark" ? "☀️" : "🌙"}
+      <span style={{ fontSize: 16 }}>{ICON[pref]}</span>
+      <span>{LABEL[pref]}</span>
     </button>
   );
 }
