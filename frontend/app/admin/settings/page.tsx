@@ -638,6 +638,121 @@ function SettingsInner() {
           </div>
           <Button onClick={saveSso}>Save SSO settings</Button>
           {ssoSaved && <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>}
+
+          {/* Setup guide */}
+          <div
+            style={{
+              marginTop: 22,
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              padding: 16,
+              background: "var(--bg)",
+            }}
+          >
+            <h4 style={{ margin: "0 0 10px", fontSize: 14 }}>
+              ❓ Setup guide — create a Google OAuth client
+            </h4>
+            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.9 }}>
+              <li>
+                Open the{" "}
+                <a href="https://console.cloud.google.com" target="_blank" rel="noreferrer">
+                  Google Cloud Console
+                </a>
+                .
+              </li>
+              <li>
+                <a
+                  href="https://console.cloud.google.com/projectcreate"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Create
+                </a>{" "}
+                or select a project.
+              </li>
+              <li>
+                Configure the{" "}
+                <a
+                  href="https://console.cloud.google.com/apis/credentials/consent"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  OAuth consent screen
+                </a>{" "}
+                (External or Internal), add your email as a test user if needed.
+              </li>
+              <li>
+                Go to{" "}
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Credentials
+                </a>{" "}
+                → <strong>Create credentials</strong> →{" "}
+                <strong>OAuth client ID</strong>.
+              </li>
+              <li>
+                Choose <strong>Web application</strong>.
+              </li>
+              <li>
+                Under <strong>Authorised redirect URIs</strong>, add the URI shown
+                above:
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: 6,
+                  }}
+                >
+                  <code
+                    style={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 6,
+                      padding: "4px 8px",
+                      fontSize: 12,
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {sso.redirect_uri}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    onClick={() =>
+                      navigator.clipboard?.writeText(sso.redirect_uri)
+                    }
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </li>
+              <li>
+                Copy the generated <strong>Client ID</strong> and{" "}
+                <strong>Client secret</strong> into the fields above and save.
+              </li>
+            </ol>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>
+              Quick links:{" "}
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noreferrer"
+              >
+                All credentials
+              </a>{" "}
+              ·{" "}
+              <a
+                href="https://console.cloud.google.com/apis/dashboard"
+                target="_blank"
+                rel="noreferrer"
+              >
+                APIs dashboard
+              </a>
+            </div>
+          </div>
         </section>
       )}
 
