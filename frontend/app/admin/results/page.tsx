@@ -55,19 +55,20 @@ export default function ResultsPage() {
               <th style={th}>Test</th>
               <th style={th}>Score</th>
               <th style={th}>Result</th>
+              <th style={th}>Finished</th>
               <th style={th}></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td style={td} colSpan={5}>
+                <td style={td} colSpan={6}>
                   Loading…
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td style={{ ...td, color: "var(--muted)" }} colSpan={5}>
+                <td style={{ ...td, color: "var(--muted)" }} colSpan={6}>
                   No submitted attempts yet.
                 </td>
               </tr>
@@ -96,6 +97,9 @@ export default function ResultsPage() {
                     ) : (
                       <span style={{ color: "#d83a3a" }}>Failed</span>
                     )}
+                  </td>
+                  <td style={{ ...td, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                    {r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—"}
                   </td>
                   <td style={{ ...td, textAlign: "right" }}>
                     <Button

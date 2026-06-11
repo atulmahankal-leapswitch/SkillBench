@@ -153,7 +153,7 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
         {d.candidate_name} : {d.test_title}
       </h1>
       <div style={{ color: "var(--muted)", marginBottom: 18 }}>
-        {when ? new Date(when).toLocaleString() : "—"} ·{" "}
+        Finished {when ? new Date(when).toLocaleString() : "—"} ·{" "}
         <strong>{correct}/{d.questions.length}</strong> · {d.percent}% ·{" "}
         {d.needs_review ? (
           <Badge>needs review</Badge>
