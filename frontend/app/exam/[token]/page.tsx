@@ -291,11 +291,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       if (!res.ok) throw new Error(String(res.status));
     }
 
-    const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
-      : "video/webm";
-    recorder = new MediaRecorder(stream, { mimeType: mime });
-    recorder.ondataavailable = async (e) => {
+    const onData = async (e: BlobEvent) => {
       if (!e.data || e.data.size === 0) return;
       const n = seq++;
       try {
@@ -314,7 +310,40 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
         }
       }
     };
-    recorder.start(5000); // emit a chunk every 5s
+
+    // Pick a codec the platform can actually record. isTypeSupported isn't
+    // always reliable, so try candidates (and a no-options fallback) and guard
+    // start() — a failure must disable recording, not crash the exam.
+    const candidates = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+      "video/mp4",
+    ];
+    const started = (() => {
+      for (const mime of candidates) {
+        if (!MediaRecorder.isTypeSupported(mime)) continue;
+        try {
+          recorder = new MediaRecorder(stream, { mimeType: mime });
+          recorder.ondataavailable = onData;
+          recorder.start(5000); // emit a chunk every 5s
+          return true;
+        } catch {
+          recorder = null;
+        }
+      }
+      // Last resort: let the browser choose everything.
+      try {
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = onData;
+        recorder.start(5000);
+        return true;
+      } catch {
+        recorder = null;
+        return false;
+      }
+    })();
+    if (!started) report("screen_record_unsupported");
 
     return () => {
       try {
@@ -323,7 +352,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
         /* ignore */
       }
     };
-  }, [live, proctoring.record_screen, token]);
+  }, [live, proctoring.record_screen, report, token]);
 
   // Multiple-display detection: browsers can't disable extra monitors, but we
   // can detect an extended desktop (screen.isExtended) and block until single.
