@@ -277,7 +277,11 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     const stream = screenStreamRef.current;
     if (!stream) return;
     let recorder: MediaRecorder | null = null;
-    let seq = 0;
+    // Seed the sequence from the wall clock so chunks from a later recording
+    // session (a resume after closing the tab) get strictly higher, unique
+    // keys instead of overwriting the previous session's 0,1,2… — the backend
+    // streams chunks back in key order, so all sessions are appended.
+    let seq = Date.now();
     const queue: Blob[] = [];
 
     async function upload(blob: Blob, n: number) {

@@ -146,7 +146,10 @@ async def get_detail(db: AsyncSession, user: User, attempt_id: uuid.UUID) -> Res
     ).unique().scalar_one()
     pass_mark = float(test.pass_mark)
 
-    questions_by_id = {tq.question.id: tq.question for tq in test.questions}
+    # Use the questions actually presented to this candidate (attempt.questions),
+    # not test.questions — blueprint tests have no fixed test.questions; their
+    # questions are materialized per attempt.
+    questions_by_id = {aq.question.id: aq.question for aq in attempt.questions}
     responses = {a.question_id: a.response for a in attempt.answers}
 
     # First category name per question (questions can have several) — used for
