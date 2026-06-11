@@ -31,9 +31,9 @@ export default async function LoginPage({
   const next = safeNext(redirect);
 
   const config = await fetchAuthConfig();
-  // Show the password form when test-mode login is enabled (or forced via the
-  // ?testmode hint for first-run setup). Show Google when it's configured.
-  const showPassword = config.password_login || testmode !== undefined;
+  // Test-mode password login only appears with the explicit ?testmode URL hint
+  // (and only when the backend allows it). Google shows when it's configured.
+  const showPassword = config.password_login && testmode !== undefined;
   const showGoogle = config.google;
 
   return (
