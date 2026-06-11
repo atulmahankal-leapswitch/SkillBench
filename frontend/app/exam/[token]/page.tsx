@@ -269,94 +269,101 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, [live, report]);
 
-  // Continuous screen recording: record the whole screen and upload chunks,
-  // reusing the screen stream captured at the permission gate. Chunks that fail
-  // to upload (offline) are queued and flushed when back online.
+  // Continuous recording: record the whole screen AND the webcam at the same
+  // time (so reviewers can watch the candidate's face while they work), reusing
+  // the streams captured at the gate. Each kind uploads to its own backend
+  // stream. Chunks that fail to upload (offline) are queued and flushed online.
   useEffect(() => {
-    if (!live || !proctoring.record_screen) return;
-    const stream = screenStreamRef.current;
-    if (!stream) return;
-    let recorder: MediaRecorder | null = null;
-    // Seed the sequence from the wall clock so chunks from a later recording
-    // session (a resume after closing the tab) get strictly higher, unique
-    // keys instead of overwriting the previous session's 0,1,2… — the backend
-    // streams chunks back in key order, so all sessions are appended.
-    let seq = Date.now();
-    const queue: Blob[] = [];
+    if (!live) return;
 
-    async function upload(blob: Blob, n: number) {
-      const fd = new FormData();
-      fd.append("seq", String(n));
-      fd.append("file", blob, `chunk-${n}.webm`);
-      const res = await fetch(`${browserApiBase}/api/exam/${token}/recording`, {
-        method: "POST",
-        body: fd,
-      });
-      if (!res.ok) throw new Error(String(res.status));
-    }
+    function startRecorder(stream: MediaStream, kind: string): () => void {
+      let recorder: MediaRecorder | null = null;
+      // Seed the sequence from the wall clock so chunks from a later recording
+      // session (a resume after closing the tab) get strictly-higher, unique
+      // keys instead of overwriting the previous session's 0,1,2…
+      let seq = Date.now();
+      const queue: Blob[] = [];
 
-    const onData = async (e: BlobEvent) => {
-      if (!e.data || e.data.size === 0) return;
-      const n = seq++;
-      try {
-        await upload(e.data, n);
-      } catch {
-        queue.push(e.data); // retry when online
-      }
-      // Opportunistically flush any queued chunks.
-      while (navigator.onLine && queue.length) {
-        const b = queue.shift()!;
+      const upload = async (blob: Blob, n: number) => {
+        const fd = new FormData();
+        fd.append("seq", String(n));
+        fd.append("kind", kind);
+        fd.append("file", blob, `${kind}-${n}.webm`);
+        const res = await fetch(`${browserApiBase}/api/exam/${token}/recording`, {
+          method: "POST",
+          body: fd,
+        });
+        if (!res.ok) throw new Error(String(res.status));
+      };
+
+      const onData = async (e: BlobEvent) => {
+        if (!e.data || e.data.size === 0) return;
         try {
-          await upload(b, seq++);
+          await upload(e.data, seq++);
         } catch {
-          queue.unshift(b);
-          break;
+          queue.push(e.data);
         }
-      }
-    };
+        while (navigator.onLine && queue.length) {
+          const b = queue.shift()!;
+          try {
+            await upload(b, seq++);
+          } catch {
+            queue.unshift(b);
+            break;
+          }
+        }
+      };
 
-    // Pick a codec the platform can actually record. isTypeSupported isn't
-    // always reliable, so try candidates (and a no-options fallback) and guard
-    // start() — a failure must disable recording, not crash the exam.
-    const candidates = [
-      "video/webm;codecs=vp9",
-      "video/webm;codecs=vp8",
-      "video/webm",
-      "video/mp4",
-    ];
-    const started = (() => {
-      for (const mime of candidates) {
-        if (!MediaRecorder.isTypeSupported(mime)) continue;
+      // isTypeSupported isn't always reliable for the captured stream, so try
+      // candidates plus a no-options fallback; guard so a failure disables this
+      // recorder rather than crashing the exam.
+      const candidates = [
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+        "video/mp4",
+      ];
+      const ok = (() => {
+        for (const mime of candidates) {
+          if (!MediaRecorder.isTypeSupported(mime)) continue;
+          try {
+            recorder = new MediaRecorder(stream, { mimeType: mime });
+            recorder.ondataavailable = onData;
+            recorder.start(5000);
+            return true;
+          } catch {
+            recorder = null;
+          }
+        }
         try {
-          recorder = new MediaRecorder(stream, { mimeType: mime });
+          recorder = new MediaRecorder(stream);
           recorder.ondataavailable = onData;
-          recorder.start(5000); // emit a chunk every 5s
+          recorder.start(5000);
           return true;
         } catch {
           recorder = null;
+          return false;
         }
-      }
-      // Last resort: let the browser choose everything.
-      try {
-        recorder = new MediaRecorder(stream);
-        recorder.ondataavailable = onData;
-        recorder.start(5000);
-        return true;
-      } catch {
-        recorder = null;
-        return false;
-      }
-    })();
-    if (!started) report("screen_record_unsupported");
+      })();
+      if (!ok) report(`${kind}_record_unsupported`);
+      return () => {
+        try {
+          recorder?.stop();
+        } catch {
+          /* ignore */
+        }
+      };
+    }
 
-    return () => {
-      try {
-        recorder?.stop();
-      } catch {
-        /* ignore */
-      }
-    };
-  }, [live, proctoring.record_screen, report, token]);
+    const stops: Array<() => void> = [];
+    if (proctoring.record_screen && screenStreamRef.current) {
+      stops.push(startRecorder(screenStreamRef.current, "screen"));
+    }
+    if (proctoring.webcam && camStreamRef.current) {
+      stops.push(startRecorder(camStreamRef.current, "camera"));
+    }
+    return () => stops.forEach((s) => s());
+  }, [live, proctoring.record_screen, proctoring.webcam, report, token]);
 
   // Multiple-display detection: browsers can't disable extra monitors, but we
   // can detect an extended desktop (screen.isExtended) and block until single.

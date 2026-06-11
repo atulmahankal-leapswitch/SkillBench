@@ -52,10 +52,11 @@ async def run_code(
 async def upload_recording(
     token: str,
     seq: int = Form(0),
+    kind: str = Form("screen"),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    return await svc.save_recording_chunk(db, token, seq, await file.read())
+    return await svc.save_recording_chunk(db, token, kind, seq, await file.read())
 
 
 @router.post("/{token}/proctor")

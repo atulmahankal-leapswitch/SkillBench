@@ -53,6 +53,8 @@ class ScheduleOut(BaseModel):
     candidate: CandidateRef
     test: TestRef
     invitation: InvitationOut | None
+    # Set when a finished (submitted/expired) attempt exists → link to results.
+    attempt_id: uuid.UUID | None = None
     created_at: datetime
 
 

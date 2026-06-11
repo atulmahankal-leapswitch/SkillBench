@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.config import settings
+from app.models.attempt import Attempt
 from app.models.candidate import Candidate
 from app.models.enums import ScheduleStatus
 from app.models.schedule import Invitation, Schedule
@@ -94,7 +95,26 @@ async def list_schedules(
     items, total = await paginate(db, stmt, limit, offset)
     for s in items:
         s.status = effective_status(s)
+    await _annotate_attempts(db, items)
     return items, total
+
+
+async def _annotate_attempts(db: AsyncSession, schedules: list[Schedule]) -> None:
+    """Attach attempt_id for schedules with a finished attempt (→ results link)."""
+    ids = [s.id for s in schedules]
+    if not ids:
+        return
+    rows = (
+        await db.execute(
+            select(Attempt.schedule_id, Attempt.id).where(
+                Attempt.schedule_id.in_(ids),
+                Attempt.status.in_(["submitted", "expired"]),
+            )
+        )
+    ).all()
+    by_schedule = {sid: aid for sid, aid in rows}
+    for s in schedules:
+        s.attempt_id = by_schedule.get(s.id)
 
 
 async def get_schedule(db: AsyncSession, user: User, schedule_id: uuid.UUID) -> Schedule:

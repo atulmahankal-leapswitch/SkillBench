@@ -21,25 +21,32 @@ def is_enabled(org: Organization) -> bool:
     return provider_of(org) in ("local", "s3")
 
 
+# Recording kinds: the candidate's whole screen, and their webcam.
+SCREEN = "screen"
+CAMERA = "camera"
+
+
 # ── Local filesystem backend (dev) ───────────────────────────────────────────
-def _local_path(attempt_id: uuid.UUID) -> Path:
+def _local_path(attempt_id: uuid.UUID, kind: str) -> Path:
     d = Path(settings.recording_dir)
     d.mkdir(parents=True, exist_ok=True)
-    return d / f"{attempt_id}.webm"
+    # Screen keeps the legacy "{id}.webm" name; other kinds add a suffix.
+    suffix = "" if kind == SCREEN else f".{kind}"
+    return d / f"{attempt_id}{suffix}.webm"
 
 
-def _local_append(attempt_id: uuid.UUID, data: bytes) -> None:
-    with open(_local_path(attempt_id), "ab") as f:
+def _local_append(attempt_id: uuid.UUID, kind: str, data: bytes) -> None:
+    with open(_local_path(attempt_id, kind), "ab") as f:
         f.write(data)
 
 
-def _local_exists(attempt_id: uuid.UUID) -> bool:
-    p = _local_path(attempt_id)
+def _local_exists(attempt_id: uuid.UUID, kind: str) -> bool:
+    p = _local_path(attempt_id, kind)
     return p.exists() and p.stat().st_size > 0
 
 
-def _local_stream(attempt_id: uuid.UUID) -> Iterator[bytes]:
-    with open(_local_path(attempt_id), "rb") as f:
+def _local_stream(attempt_id: uuid.UUID, kind: str) -> Iterator[bytes]:
+    with open(_local_path(attempt_id, kind), "rb") as f:
         while chunk := f.read(64 * 1024):
             yield chunk
 
@@ -61,54 +68,73 @@ def _s3_client(org: Organization):
     )
 
 
-def _s3_key(attempt_id: uuid.UUID, seq: int) -> str:
-    return f"recordings/{attempt_id}/{seq:08d}.webm"
+def _s3_key(attempt_id: uuid.UUID, kind: str, seq: int) -> str:
+    # Screen keeps the legacy keyless layout; other kinds get a sub-prefix.
+    if kind == SCREEN:
+        return f"recordings/{attempt_id}/{seq:08d}.webm"
+    return f"recordings/{attempt_id}/{kind}/{seq:08d}.webm"
 
 
-def _s3_put(org: Organization, attempt_id: uuid.UUID, seq: int, data: bytes) -> None:
-    _s3_client(org).put_object(
-        Bucket=org.recording_s3_bucket, Key=_s3_key(attempt_id, seq), Body=data
-    )
+def _s3_kind_of(prefix: str, key: str) -> str:
+    rest = key[len(prefix):]
+    return CAMERA if rest.startswith(f"{CAMERA}/") else SCREEN
 
 
-def _s3_stream(org: Organization, attempt_id: uuid.UUID) -> Iterator[bytes]:
+def _s3_sorted_keys(org: Organization, attempt_id: uuid.UUID, kind: str) -> list[str]:
     client = _s3_client(org)
-    resp = client.list_objects_v2(
-        Bucket=org.recording_s3_bucket, Prefix=f"recordings/{attempt_id}/"
-    )
-    for obj in sorted(resp.get("Contents", []), key=lambda o: o["Key"]):
-        body = client.get_object(Bucket=org.recording_s3_bucket, Key=obj["Key"])["Body"]
-        yield body.read()
+    prefix = f"recordings/{attempt_id}/"
+    resp = client.list_objects_v2(Bucket=org.recording_s3_bucket, Prefix=prefix)
+    keys = [
+        o["Key"]
+        for o in resp.get("Contents", [])
+        if _s3_kind_of(prefix, o["Key"]) == kind
+    ]
+    return sorted(keys)
 
 
-def _s3_exists(org: Organization, attempt_id: uuid.UUID) -> bool:
-    resp = _s3_client(org).list_objects_v2(
-        Bucket=org.recording_s3_bucket, Prefix=f"recordings/{attempt_id}/", MaxKeys=1
+def _s3_put(
+    org: Organization, attempt_id: uuid.UUID, kind: str, seq: int, data: bytes
+) -> None:
+    _s3_client(org).put_object(
+        Bucket=org.recording_s3_bucket, Key=_s3_key(attempt_id, kind, seq), Body=data
     )
-    return resp.get("KeyCount", 0) > 0
+
+
+def _s3_stream(org: Organization, attempt_id: uuid.UUID, kind: str) -> Iterator[bytes]:
+    client = _s3_client(org)
+    for key in _s3_sorted_keys(org, attempt_id, kind):
+        yield client.get_object(Bucket=org.recording_s3_bucket, Key=key)["Body"].read()
+
+
+def _s3_exists(org: Organization, attempt_id: uuid.UUID, kind: str) -> bool:
+    return bool(_s3_sorted_keys(org, attempt_id, kind))
 
 
 # ── Public API (dispatch by provider) ────────────────────────────────────────
-def append_chunk(org: Organization, attempt_id: uuid.UUID, seq: int, data: bytes) -> None:
+def append_chunk(
+    org: Organization, attempt_id: uuid.UUID, kind: str, seq: int, data: bytes
+) -> None:
     if provider_of(org) == "local":
-        _local_append(attempt_id, data)
+        _local_append(attempt_id, kind, data)
     elif provider_of(org) == "s3":
-        _s3_put(org, attempt_id, seq, data)
+        _s3_put(org, attempt_id, kind, seq, data)
 
 
-def exists(org: Organization, attempt_id: uuid.UUID) -> bool:
+def exists(org: Organization, attempt_id: uuid.UUID, kind: str = SCREEN) -> bool:
     if provider_of(org) == "local":
-        return _local_exists(attempt_id)
+        return _local_exists(attempt_id, kind)
     if provider_of(org) == "s3":
-        return _s3_exists(org, attempt_id)
+        return _s3_exists(org, attempt_id, kind)
     return False
 
 
-def stream(org: Organization, attempt_id: uuid.UUID) -> Iterator[bytes]:
+def stream(
+    org: Organization, attempt_id: uuid.UUID, kind: str = SCREEN
+) -> Iterator[bytes]:
     if provider_of(org) == "local":
-        return _local_stream(attempt_id)
+        return _local_stream(attempt_id, kind)
     if provider_of(org) == "s3":
-        return _s3_stream(org, attempt_id)
+        return _s3_stream(org, attempt_id, kind)
     return iter(())
 
 

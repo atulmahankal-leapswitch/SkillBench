@@ -197,5 +197,6 @@ export type Schedule = {
     sent_at: string | null;
     revoked_at: string | null;
   } | null;
+  attempt_id: string | null;
   created_at: string;
 };

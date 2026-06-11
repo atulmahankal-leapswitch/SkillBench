@@ -56,6 +56,8 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
   const [d, setD] = useState<ResultDetail | null>(null);
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [cameraUrl, setCameraUrl] = useState<string | null>(null);
+  const [recView, setRecView] = useState<"both" | "screen" | "camera">("both");
   const [proctor, setProctor] = useState<Proctor | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -75,13 +77,17 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
       setOverrides(ov);
       setFeedbacks(fb);
       api.get<Integrity>(`/results/${attemptId}/integrity`).then(setIntegrity).catch(() => {});
-      // Screen recording (if any) — fetch as a blob so the admin cookie is sent.
-      fetch(`${browserApiBase}/api/results/${attemptId}/recording`, {
-        credentials: "include",
-      })
-        .then((r) => (r.ok ? r.blob() : Promise.reject()))
-        .then((b) => setRecordingUrl(URL.createObjectURL(b)))
-        .catch(() => setRecordingUrl(null));
+      // Screen + camera recordings (if any) — fetch as blobs so the admin
+      // cookie is sent. Each kind is a separate stream on the backend.
+      const fetchRec = (kind: string, set: (u: string | null) => void) =>
+        fetch(`${browserApiBase}/api/results/${attemptId}/recording?kind=${kind}`, {
+          credentials: "include",
+        })
+          .then((r) => (r.ok ? r.blob() : Promise.reject()))
+          .then((b) => set(URL.createObjectURL(b)))
+          .catch(() => set(null));
+      fetchRec("screen", setRecordingUrl);
+      fetchRec("camera", setCameraUrl);
       api.get<Proctor>(`/results/${attemptId}/proctor`).then(setProctor).catch(() => {});
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load");
@@ -305,18 +311,92 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
 
       {tab === "watch" && (
         <>
-          {/* Screen recording */}
+          {/* Recordings (screen + camera) */}
           <div style={card}>
-            <h3 style={sectionTitle}>Screen recording</h3>
-            {recordingUrl ? (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
-              <video
-                src={recordingUrl}
-                controls
-                style={{ width: "100%", borderRadius: 8, background: "#000" }}
-              />
-            ) : (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <h3 style={{ ...sectionTitle, margin: 0 }}>Recordings</h3>
+              {(recordingUrl || cameraUrl) && (
+                <div style={{ display: "flex", gap: 4 }}>
+                  {(["both", "screen", "camera"] as const).map((v) => {
+                    const disabled =
+                      (v === "screen" && !recordingUrl) ||
+                      (v === "camera" && !cameraUrl) ||
+                      (v === "both" && !(recordingUrl && cameraUrl));
+                    return (
+                      <button
+                        key={v}
+                        disabled={disabled}
+                        onClick={() => setRecView(v)}
+                        style={{
+                          textTransform: "capitalize",
+                          fontSize: 13,
+                          padding: "5px 12px",
+                          borderRadius: 8,
+                          cursor: disabled ? "not-allowed" : "pointer",
+                          border: `1px solid ${recView === v && !disabled ? "var(--accent)" : "var(--border)"}`,
+                          background:
+                            recView === v && !disabled
+                              ? "color-mix(in srgb, var(--accent) 16%, transparent)"
+                              : "transparent",
+                          color: disabled ? "var(--muted)" : "var(--fg)",
+                          opacity: disabled ? 0.5 : 1,
+                        }}
+                      >
+                        {v}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {!recordingUrl && !cameraUrl ? (
               <p style={{ color: "var(--muted)", margin: 0 }}>No recording.</p>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    recView === "both" ? "1fr 1fr" : "1fr",
+                  gap: 12,
+                }}
+              >
+                {recView !== "camera" && recordingUrl && (
+                  <div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>
+                      Screen
+                    </div>
+                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                    <video
+                      src={recordingUrl}
+                      controls
+                      style={{ width: "100%", borderRadius: 8, background: "#000" }}
+                    />
+                  </div>
+                )}
+                {recView !== "screen" && cameraUrl && (
+                  <div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>
+                      Camera
+                    </div>
+                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                    <video
+                      src={cameraUrl}
+                      controls
+                      style={{ width: "100%", borderRadius: 8, background: "#000" }}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

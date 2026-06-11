@@ -314,8 +314,9 @@ async def run_code(db: AsyncSession, token: str, data: RunRequest) -> RunRespons
 
 
 async def save_recording_chunk(
-    db: AsyncSession, token: str, seq: int, data: bytes
+    db: AsyncSession, token: str, kind: str, seq: int, data: bytes
 ) -> dict:
+    kind = kind if kind in ("screen", "camera") else "screen"
     _, schedule = await _load(db, token)
     attempt = await _get_attempt(db, schedule)
     if attempt is None:
@@ -329,7 +330,7 @@ async def save_recording_chunk(
         raise HTTPException(
             http.HTTP_503_SERVICE_UNAVAILABLE, "Recording storage is not configured"
         )
-    recording.append_chunk(org, attempt.id, seq, data)
+    recording.append_chunk(org, attempt.id, kind, seq, data)
     return {"saved": True}
 
 

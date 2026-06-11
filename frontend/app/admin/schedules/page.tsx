@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   api,
@@ -347,6 +348,22 @@ function SchedulesCalendar() {
             <Badge>{selected.status}</Badge>
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {selected.attempt_id && (
+              <Link
+                href={`/admin/results/${selected.attempt_id}`}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  background: "var(--accent)",
+                  color: "#fff",
+                  textDecoration: "none",
+                }}
+              >
+                View result →
+              </Link>
+            )}
             <Button variant="ghost" onClick={() => copyLink(selected)}>{copied ? "Copied!" : "Copy link"}</Button>
             {(selected.status === "scheduled" || selected.status === "in_progress") && (
               <>

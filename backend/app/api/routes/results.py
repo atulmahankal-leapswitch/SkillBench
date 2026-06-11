@@ -103,6 +103,7 @@ async def integrity(
 @router.get("/{attempt_id}/recording")
 async def recording_playback(
     attempt_id: uuid.UUID,
+    kind: str = Query(default="screen", pattern="^(screen|camera)$"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("result:read")),
 ):
@@ -121,9 +122,11 @@ async def recording_playback(
             select(Organization).where(Organization.id == user.organization_id)
         )
     ).scalar_one()
-    if not recording.exists(org, attempt.id):
+    if not recording.exists(org, attempt.id, kind):
         raise HTTPException(http.HTTP_404_NOT_FOUND, "No recording")
-    return StreamingResponse(recording.stream(org, attempt.id), media_type="video/webm")
+    return StreamingResponse(
+        recording.stream(org, attempt.id, kind), media_type="video/webm"
+    )
 
 
 @router.get("/{attempt_id}/proctor/{event_id}/image")
