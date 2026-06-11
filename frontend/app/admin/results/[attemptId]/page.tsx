@@ -6,6 +6,7 @@ import { browserApiBase } from "@/lib/api";
 import { api, ApiError, QuestionResult, ResultDetail } from "@/lib/client";
 import { Badge, Button, ErrorText, inputStyle } from "@/components/ui";
 import { useUrlParam } from "@/lib/url";
+import RecordingPlayer from "@/components/RecordingPlayer";
 
 type Integrity = {
   risk_score: number;
@@ -57,7 +58,6 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [cameraUrl, setCameraUrl] = useState<string | null>(null);
-  const [recView, setRecView] = useState<"both" | "screen" | "camera">("both");
   const [proctor, setProctor] = useState<Proctor | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -311,92 +311,13 @@ function ResultDetailInner({ attemptId }: { attemptId: string }) {
 
       {tab === "watch" && (
         <>
-          {/* Recordings (screen + camera) */}
+          {/* Recordings (screen + camera) — synced custom player */}
           <div style={card}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 12,
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <h3 style={{ ...sectionTitle, margin: 0 }}>Recordings</h3>
-              {(recordingUrl || cameraUrl) && (
-                <div style={{ display: "flex", gap: 4 }}>
-                  {(["both", "screen", "camera"] as const).map((v) => {
-                    const disabled =
-                      (v === "screen" && !recordingUrl) ||
-                      (v === "camera" && !cameraUrl) ||
-                      (v === "both" && !(recordingUrl && cameraUrl));
-                    return (
-                      <button
-                        key={v}
-                        disabled={disabled}
-                        onClick={() => setRecView(v)}
-                        style={{
-                          textTransform: "capitalize",
-                          fontSize: 13,
-                          padding: "5px 12px",
-                          borderRadius: 8,
-                          cursor: disabled ? "not-allowed" : "pointer",
-                          border: `1px solid ${recView === v && !disabled ? "var(--accent)" : "var(--border)"}`,
-                          background:
-                            recView === v && !disabled
-                              ? "color-mix(in srgb, var(--accent) 16%, transparent)"
-                              : "transparent",
-                          color: disabled ? "var(--muted)" : "var(--fg)",
-                          opacity: disabled ? 0.5 : 1,
-                        }}
-                      >
-                        {v}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
+            <h3 style={sectionTitle}>Recordings</h3>
             {!recordingUrl && !cameraUrl ? (
               <p style={{ color: "var(--muted)", margin: 0 }}>No recording.</p>
             ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    recView === "both" ? "1fr 1fr" : "1fr",
-                  gap: 12,
-                }}
-              >
-                {recView !== "camera" && recordingUrl && (
-                  <div>
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>
-                      Screen
-                    </div>
-                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                    <video
-                      src={recordingUrl}
-                      controls
-                      style={{ width: "100%", borderRadius: 8, background: "#000" }}
-                    />
-                  </div>
-                )}
-                {recView !== "screen" && cameraUrl && (
-                  <div>
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>
-                      Camera
-                    </div>
-                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                    <video
-                      src={cameraUrl}
-                      controls
-                      style={{ width: "100%", borderRadius: 8, background: "#000" }}
-                    />
-                  </div>
-                )}
-              </div>
+              <RecordingPlayer screenUrl={recordingUrl} cameraUrl={cameraUrl} />
             )}
           </div>
 
