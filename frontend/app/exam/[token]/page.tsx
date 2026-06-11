@@ -673,7 +673,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
         <div style={{ height: 4, width: `${pct}%`, background: accent, transition: "width .3s" }} />
       </div>
 
-      <div style={{ display: "flex", maxWidth: 1080, margin: "0 auto", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", alignItems: "flex-start" }}>
         <QuestionNav questions={state.questions} answers={answers} accent={accent} />
         <main style={{ flex: 1, minWidth: 0, padding: "24px 18px 96px" }}>
           <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>
@@ -878,17 +878,36 @@ function QuestionNav({
 }) {
   const go = (i: number) =>
     document.getElementById(`q-${i}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Group questions (with their global index) by "<category>:<level>",
+  // preserving first-seen order.
+  const groups: { label: string; items: number[] }[] = [];
+  const seen = new Map<string, number>();
+  questions.forEach((q, i) => {
+    const cat = q.categories?.[0] || "General";
+    const level = q.difficulty || "—";
+    const label = `${cat}:${level}`;
+    let gi = seen.get(label);
+    if (gi === undefined) {
+      gi = groups.length;
+      seen.set(label, gi);
+      groups.push({ label, items: [] });
+    }
+    groups[gi].items.push(i);
+  });
+
   return (
     <aside
       style={{
         position: "sticky",
         top: 60,
         alignSelf: "flex-start",
-        width: 188,
+        width: 224,
         flexShrink: 0,
         maxHeight: "calc(100vh - 76px)",
         overflowY: "auto",
-        padding: "24px 8px 24px 18px",
+        padding: "24px 12px 24px 18px",
+        borderRight: "1px solid var(--border)",
       }}
     >
       <div
@@ -897,67 +916,50 @@ function QuestionNav({
           color: "var(--muted)",
           textTransform: "uppercase",
           letterSpacing: ".06em",
-          marginBottom: 10,
+          marginBottom: 12,
         }}
       >
         Questions
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {questions.map((q, i) => {
-          const done = answers[q.id] != null;
-          return (
-            <button
-              key={q.id}
-              onClick={() => go(i)}
-              title={q.categories?.join(", ") || q.type}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                textAlign: "left",
-                padding: "6px 8px",
-                borderRadius: 8,
-                cursor: "pointer",
-                border: `1px solid ${done ? accent : "var(--border)"}`,
-                background: done
-                  ? `color-mix(in srgb, ${accent} 16%, transparent)`
-                  : "transparent",
-                color: "var(--fg)",
-              }}
-            >
-              <span
-                style={{
-                  ...numBadge,
-                  width: 22,
-                  height: 22,
-                  fontSize: 12,
-                  background: done ? accent : "var(--border)",
-                  color: done ? "#fff" : "var(--muted)",
-                }}
-              >
-                {i + 1}
-              </span>
-              <span style={{ minWidth: 0, fontSize: 11, lineHeight: 1.3 }}>
-                <span style={{ display: "block", textTransform: "capitalize" }}>
-                  {q.difficulty || "—"}
-                </span>
-                <span
+      {groups.map((g) => (
+        <div key={g.label} style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--muted)",
+              marginBottom: 7,
+              textTransform: "capitalize",
+            }}
+          >
+            {g.label}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {g.items.map((i) => {
+              const done = answers[questions[i].id] != null;
+              return (
+                <button
+                  key={i}
+                  onClick={() => go(i)}
+                  title={`Question ${i + 1}`}
                   style={{
-                    display: "block",
-                    color: "var(--muted)",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: 120,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    border: `1px solid ${done ? accent : "var(--border)"}`,
+                    background: done ? accent : "transparent",
+                    color: done ? "#fff" : "var(--fg)",
                   }}
                 >
-                  {q.categories?.join(", ") || q.type}
-                </span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+                  {i + 1}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </aside>
   );
 }
