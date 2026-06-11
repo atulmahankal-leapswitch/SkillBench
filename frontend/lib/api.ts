@@ -27,6 +27,22 @@ export type CurrentUser = {
   permissions: string[];
 };
 
+// Server-side: which sign-in methods the login page should offer.
+export async function fetchAuthConfig(): Promise<{
+  google: boolean;
+  password_login: boolean;
+}> {
+  try {
+    const res = await fetch(`${serverApiBase}/api/auth/config`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return { google: false, password_login: false };
+    return await res.json();
+  } catch {
+    return { google: false, password_login: false };
+  }
+}
+
 // Server-side: fetch the current user, forwarding the incoming cookies.
 // Returns null when not authenticated.
 export async function fetchCurrentUser(

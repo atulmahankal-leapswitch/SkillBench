@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission
+from app.core.config import settings as app_settings
 from app.core.database import get_db
 from app.models.organization import Organization
 from app.models.user import User
@@ -13,6 +14,7 @@ from app.schemas.recording_settings import (
     RecordingSettingsOut,
     RecordingSettingsUpdate,
 )
+from app.schemas.sso_settings import SSOSettingsOut, SSOSettingsUpdate
 from app.services import ai, claude_auth, recording
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -122,6 +124,39 @@ async def test_recording_settings(
     org = await _org(db, user)
     ok, detail = recording.check_connection(org)
     return {"ok": ok, "detail": detail}
+
+
+def _sso_out(org: Organization) -> SSOSettingsOut:
+    return SSOSettingsOut(
+        google_client_id=org.google_oauth_client_id,
+        google_client_secret_set=bool(org.google_oauth_client_secret),
+        redirect_uri=app_settings.google_oauth_redirect_uri,
+    )
+
+
+@router.get("/sso", response_model=SSOSettingsOut)
+async def get_sso_settings(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("settings:manage")),
+) -> SSOSettingsOut:
+    return _sso_out(await _org(db, user))
+
+
+@router.put("/sso", response_model=SSOSettingsOut)
+async def update_sso_settings(
+    data: SSOSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("settings:manage")),
+) -> SSOSettingsOut:
+    org = await _org(db, user)
+    org.google_oauth_client_id = data.google_client_id.strip()
+    if data.google_client_secret == CLEAR:
+        org.google_oauth_client_secret = ""
+    elif data.google_client_secret:
+        org.google_oauth_client_secret = data.google_client_secret.strip()
+    await db.commit()
+    await db.refresh(org)
+    return _sso_out(org)
 
 
 @router.get("/claude-auth")

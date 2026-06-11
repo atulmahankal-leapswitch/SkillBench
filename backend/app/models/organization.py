@@ -50,6 +50,14 @@ class Organization(Base, TimestampMixin):
     recording_s3_access_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     recording_s3_secret: Mapped[str] = mapped_column(String(255), default="", nullable=False)
 
+    # Google OAuth (admin sign-in). Overrides env when client_id is set.
+    google_oauth_client_id: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False
+    )
+    google_oauth_client_secret: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False
+    )
+
     users: Mapped[list["User"]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"
     )

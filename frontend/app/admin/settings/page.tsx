@@ -44,12 +44,20 @@ type RecSettings = {
 
 const SCOPES = ["candidate:read", "result:read"];
 const EVENTS = ["attempt.submitted", "result.ready"];
-const TABS = ["Branding", "AI Provider", "Recording", "API Keys", "Webhooks"] as const;
+const TABS = [
+  "Branding",
+  "AI Provider",
+  "Recording",
+  "Login / SSO",
+  "API Keys",
+  "Webhooks",
+] as const;
 type Tab = (typeof TABS)[number];
 const TAB_SLUG: Record<Tab, string> = {
   Branding: "branding",
   "AI Provider": "ai",
   Recording: "recording",
+  "Login / SSO": "sso",
   "API Keys": "api-keys",
   Webhooks: "webhooks",
 };
@@ -118,6 +126,15 @@ function SettingsInner() {
   const [recTest, setRecTest] = useState<{ ok: boolean; detail: string } | null>(null);
   const [recTesting, setRecTesting] = useState(false);
 
+  // Login / SSO (Google OAuth)
+  const [sso, setSso] = useState<{
+    google_client_id: string;
+    google_client_secret_set: boolean;
+    redirect_uri: string;
+  }>({ google_client_id: "", google_client_secret_set: false, redirect_uri: "" });
+  const [ssoSecret, setSsoSecret] = useState("");
+  const [ssoSaved, setSsoSaved] = useState(false);
+
   // Keys + webhooks
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [hooks, setHooks] = useState<Webhook[]>([]);
@@ -132,6 +149,7 @@ function SettingsInner() {
       setBrand(await api.get("/branding"));
       setAi(await api.get<AISettings>("/settings/ai"));
       setRec(await api.get<RecSettings>("/settings/recording"));
+      setSso(await api.get("/settings/sso"));
       setKeys(await api.get<ApiKey[]>("/integrations/api-keys"));
       setHooks(await api.get<Webhook[]>("/integrations/webhooks"));
     } catch (e) {
@@ -205,6 +223,20 @@ function SettingsInner() {
       setRecSecret("");
       setRecSaved(true);
       setTimeout(() => setRecSaved(false), 2000);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Save failed");
+    }
+  }
+
+  async function saveSso() {
+    setError(null);
+    try {
+      const body: Record<string, unknown> = { google_client_id: sso.google_client_id };
+      if (ssoSecret) body.google_client_secret = ssoSecret;
+      setSso(await api.put("/settings/sso", body));
+      setSsoSecret("");
+      setSsoSaved(true);
+      setTimeout(() => setSsoSaved(false), 2000);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Save failed");
     }
@@ -569,6 +601,43 @@ function SettingsInner() {
               {recTest.detail}
             </p>
           )}
+        </section>
+      )}
+
+      {tab === "Login / SSO" && (
+        <section style={{ maxWidth: 560 }}>
+          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 0 }}>
+            Configure Google sign-in for admins. Create an OAuth client in the
+            Google Cloud console, add the redirect URI below as an authorised
+            redirect URI, then paste the client ID and secret here.
+          </p>
+          <Field label="Authorised redirect URI (add this in Google)">
+            <input style={inputStyle} value={sso.redirect_uri} readOnly />
+          </Field>
+          <Field label="Client ID">
+            <input
+              style={inputStyle}
+              placeholder="xxxxxxxx.apps.googleusercontent.com"
+              value={sso.google_client_id}
+              onChange={(e) => setSso({ ...sso, google_client_id: e.target.value })}
+            />
+          </Field>
+          <Field label={`Client secret ${sso.google_client_secret_set ? "(set)" : ""}`}>
+            <input
+              type="password"
+              style={inputStyle}
+              placeholder={sso.google_client_secret_set ? "••••••••" : "GOCSPX-…"}
+              value={ssoSecret}
+              onChange={(e) => setSsoSecret(e.target.value)}
+            />
+          </Field>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
+            {sso.google_client_id
+              ? "Google sign-in is enabled."
+              : "Leave the client ID blank to disable Google sign-in."}
+          </div>
+          <Button onClick={saveSso}>Save SSO settings</Button>
+          {ssoSaved && <span style={{ color: "#7ee787", marginLeft: 10 }}>Saved</span>}
         </section>
       )}
 

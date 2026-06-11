@@ -89,15 +89,19 @@ def _login_redirect(
 
 
 @router.get("/google/login")
-async def google_login(next: str = "/admin") -> RedirectResponse:
+async def google_login(
+    next: str = "/admin", db: AsyncSession = Depends(get_db)
+) -> RedirectResponse:
     """Redirect the browser to Google's consent screen."""
-    if not settings.google_client_id:
+    client_id, _ = await google.resolve_credentials(db)
+    if not client_id:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "Google OAuth not configured"
         )
     state = sign_state({"next": next})
     return RedirectResponse(
-        google.build_authorization_url(state), status_code=status.HTTP_302_FOUND
+        google.build_authorization_url(state, client_id),
+        status_code=status.HTTP_302_FOUND,
     )
 
 
@@ -119,8 +123,11 @@ async def google_callback(
         return _login_redirect("bad_state")
     next_path = state_data.get("next", "/admin")
 
+    client_id, client_secret = await google.resolve_credentials(db)
     try:
-        profile = await google.exchange_code_for_profile(code)
+        profile = await google.exchange_code_for_profile(
+            code, client_id, client_secret
+        )
     except httpx.HTTPError:
         return _login_redirect("token_exchange_failed")
 
@@ -193,3 +200,12 @@ async def logout(response: Response) -> dict:
     response.delete_cookie(ACCESS_COOKIE, path="/")
     response.delete_cookie(REFRESH_COOKIE, path="/")
     return {"status": "logged_out"}
+
+
+@router.get("/config")
+async def auth_config(db: AsyncSession = Depends(get_db)) -> dict:
+    """Public: which sign-in methods the login page should offer."""
+    return {
+        "google": await google.is_configured(db),
+        "password_login": settings.allow_password_login,
+    }

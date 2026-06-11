@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from urllib.parse import urlencode
 
 import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models.organization import Organization
 
 AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
@@ -24,9 +27,9 @@ class GoogleProfile:
     hosted_domain: str | None
 
 
-def build_authorization_url(state: str) -> str:
+def build_authorization_url(state: str, client_id: str) -> str:
     params = {
-        "client_id": settings.google_client_id,
+        "client_id": client_id,
         "redirect_uri": settings.google_oauth_redirect_uri,
         "response_type": "code",
         "scope": " ".join(SCOPES),
@@ -43,15 +46,17 @@ def build_authorization_url(state: str) -> str:
     return f"{AUTH_ENDPOINT}?{urlencode(params)}"
 
 
-async def exchange_code_for_profile(code: str) -> GoogleProfile:
+async def exchange_code_for_profile(
+    code: str, client_id: str, client_secret: str
+) -> GoogleProfile:
     """Exchange an authorization code for the user's verified profile."""
     async with httpx.AsyncClient(timeout=10) as client:
         token_resp = await client.post(
             TOKEN_ENDPOINT,
             data={
                 "code": code,
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
+                "client_id": client_id,
+                "client_secret": client_secret,
                 "redirect_uri": settings.google_oauth_redirect_uri,
                 "grant_type": "authorization_code",
             },
@@ -74,6 +79,28 @@ async def exchange_code_for_profile(code: str) -> GoogleProfile:
         picture=info.get("picture", ""),
         hosted_domain=info.get("hd"),
     )
+
+
+async def resolve_credentials(db: AsyncSession) -> tuple[str, str]:
+    """Google OAuth client id/secret: prefer an org-configured pair (set in
+    Settings), else fall back to the env-configured values. The Google project
+    is app-global, so any org's configured credentials are used for login."""
+    row = (
+        await db.execute(
+            select(
+                Organization.google_oauth_client_id,
+                Organization.google_oauth_client_secret,
+            ).where(Organization.google_oauth_client_id != "")
+        )
+    ).first()
+    if row and row[0]:
+        return row[0], row[1]
+    return settings.google_client_id, settings.google_client_secret
+
+
+async def is_configured(db: AsyncSession) -> bool:
+    client_id, _ = await resolve_credentials(db)
+    return bool(client_id)
 
 
 def email_domain(email: str) -> str:
