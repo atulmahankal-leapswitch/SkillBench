@@ -15,6 +15,8 @@ class PublicQuestion(BaseModel):
     type: QuestionType
     prompt: str
     points: float
+    difficulty: str = ""
+    categories: list[str] = []
     # mcq / multi_select
     options: list[dict[str, str]] | None = None
     multiple: bool = False
@@ -28,7 +30,14 @@ class PublicQuestion(BaseModel):
 
 def build_public_question(q: Question, points: float) -> PublicQuestion:
     payload = q.payload or {}
-    pub = PublicQuestion(id=q.id, type=QuestionType(q.type), prompt=q.prompt, points=points)
+    pub = PublicQuestion(
+        id=q.id,
+        type=QuestionType(q.type),
+        prompt=q.prompt,
+        points=points,
+        difficulty=q.difficulty or "",
+        categories=[c.name for c in (q.categories or [])],
+    )
     if q.type in (QuestionType.MCQ, QuestionType.MULTI_SELECT):
         pub.options = [
             {"key": o["key"], "text": o["text"]} for o in payload.get("options", [])

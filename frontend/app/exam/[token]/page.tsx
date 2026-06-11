@@ -8,6 +8,8 @@ type PublicQuestion = {
   type: "mcq" | "multi_select" | "text" | "coding";
   prompt: string;
   points: number;
+  difficulty?: string;
+  categories?: string[];
   options?: { key: string; text: string }[];
   multiple?: boolean;
   max_chars?: number | null;
@@ -621,34 +623,43 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
         <div style={{ height: 4, width: `${pct}%`, background: accent, transition: "width .3s" }} />
       </div>
 
-      <main style={{ maxWidth: 760, margin: "0 auto", padding: "24px 18px 96px" }}>
-        <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>
-          {answered} of {state.questions.length} answered
-        </div>
-        {state.questions.map((q, i) => (
-          <div key={q.id} style={{ ...cardStyle, marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <span style={{ ...numBadge, background: accent }}>{i + 1}</span>
-              <span style={{ color: "var(--muted)", fontSize: 13 }}>
-                {q.points} pt{q.points === 1 ? "" : "s"} · {q.type}
-              </span>
-            </div>
-            <p style={{ fontSize: 16, whiteSpace: "pre-wrap", marginTop: 0 }}>{q.prompt}</p>
-            <QuestionInput
-              q={q}
-              value={answers[q.id]}
-              accent={accent}
-              onChange={(resp) => saveAnswer(q.id, resp)}
-              onRun={async (code, language) => {
-                const r = await call(`${token}/run`, "POST", {
-                  question_id: q.id, language, code,
-                });
-                return (r as { results: RunCaseResult[] }).results;
-              }}
-            />
+      <div style={{ display: "flex", maxWidth: 1080, margin: "0 auto", alignItems: "flex-start" }}>
+        <QuestionNav questions={state.questions} answers={answers} accent={accent} />
+        <main style={{ flex: 1, minWidth: 0, padding: "24px 18px 96px" }}>
+          <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>
+            {answered} of {state.questions.length} answered
           </div>
-        ))}
-      </main>
+          {state.questions.map((q, i) => (
+            <div key={q.id} id={`q-${i}`} style={{ ...cardStyle, marginBottom: 16, scrollMarginTop: 70 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                <span style={{ ...numBadge, background: accent }}>{i + 1}</span>
+                <span style={{ color: "var(--muted)", fontSize: 13 }}>
+                  {q.points} pt{q.points === 1 ? "" : "s"} · {q.type}
+                </span>
+                {q.difficulty && (
+                  <Chip>
+                    <span style={{ textTransform: "capitalize" }}>{q.difficulty}</span>
+                  </Chip>
+                )}
+                {q.categories?.map((c) => <Chip key={c}>{c}</Chip>)}
+              </div>
+              <p style={{ fontSize: 16, whiteSpace: "pre-wrap", marginTop: 0 }}>{q.prompt}</p>
+              <QuestionInput
+                q={q}
+                value={answers[q.id]}
+                accent={accent}
+                onChange={(resp) => saveAnswer(q.id, resp)}
+                onRun={async (code, language) => {
+                  const r = await call(`${token}/run`, "POST", {
+                    question_id: q.id, language, code,
+                  });
+                  return (r as { results: RunCaseResult[] }).results;
+                }}
+              />
+            </div>
+          ))}
+        </main>
+      </div>
 
       {/* Sticky footer */}
       <div style={footerBar}>
@@ -804,6 +815,101 @@ function Brand({ state, compact }: { state: ExamState; compact?: boolean }) {
     return <img src={logo} alt={name || "logo"} style={{ height: compact ? 24 : 40 }} />;
   if (name) return <span style={{ fontWeight: 700 }}>{name}</span>;
   return <span style={{ fontWeight: 700, color: "var(--muted)" }}>{APP}</span>;
+}
+
+function QuestionNav({
+  questions,
+  answers,
+  accent,
+}: {
+  questions: PublicQuestion[];
+  answers: Record<string, unknown>;
+  accent: string;
+}) {
+  const go = (i: number) =>
+    document.getElementById(`q-${i}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  return (
+    <aside
+      style={{
+        position: "sticky",
+        top: 60,
+        alignSelf: "flex-start",
+        width: 188,
+        flexShrink: 0,
+        maxHeight: "calc(100vh - 76px)",
+        overflowY: "auto",
+        padding: "24px 8px 24px 18px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          color: "var(--muted)",
+          textTransform: "uppercase",
+          letterSpacing: ".06em",
+          marginBottom: 10,
+        }}
+      >
+        Questions
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {questions.map((q, i) => {
+          const done = answers[q.id] != null;
+          return (
+            <button
+              key={q.id}
+              onClick={() => go(i)}
+              title={q.categories?.join(", ") || q.type}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                textAlign: "left",
+                padding: "6px 8px",
+                borderRadius: 8,
+                cursor: "pointer",
+                border: `1px solid ${done ? accent : "var(--border)"}`,
+                background: done
+                  ? `color-mix(in srgb, ${accent} 16%, transparent)`
+                  : "transparent",
+                color: "var(--fg)",
+              }}
+            >
+              <span
+                style={{
+                  ...numBadge,
+                  width: 22,
+                  height: 22,
+                  fontSize: 12,
+                  background: done ? accent : "var(--border)",
+                  color: done ? "#fff" : "var(--muted)",
+                }}
+              >
+                {i + 1}
+              </span>
+              <span style={{ minWidth: 0, fontSize: 11, lineHeight: 1.3 }}>
+                <span style={{ display: "block", textTransform: "capitalize" }}>
+                  {q.difficulty || "—"}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    color: "var(--muted)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: 120,
+                  }}
+                >
+                  {q.categories?.join(", ") || q.type}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </aside>
+  );
 }
 
 function PermItem({ label, status }: { label: string; status: PermStatus }) {
