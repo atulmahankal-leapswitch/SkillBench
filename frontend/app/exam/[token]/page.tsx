@@ -67,6 +67,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
   const [multiDisplay, setMultiDisplay] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [disconnected, setDisconnected] = useState(false);
+  const [serverDown, setServerDown] = useState(false);
   const offlineAtRef = useRef<number | null>(null);
   const submittedRef = useRef(false);
 
@@ -134,9 +135,11 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
   // The live exam UI/monitoring only runs once the gate has been passed.
   const live = active && entered;
 
-  // Countdown + auto-submit. Frozen while disconnected (see online/offline).
+  // Countdown + auto-submit. Only runs in the live exam (not on the "Continue
+  // test" screen, so the pending duration isn't reduced before entering), and
+  // is frozen while disconnected or the server is unreachable.
   useEffect(() => {
-    if (!active || disconnected) return;
+    if (!live || disconnected || serverDown) return;
     const id = setInterval(() => {
       setRemaining((r) => {
         if (r <= 1) {
@@ -148,7 +151,7 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [active, disconnected, doSubmit]);
+  }, [live, disconnected, serverDown, doSubmit]);
 
   // Connection drop → freeze the timer + block the exam; on reconnect, credit
   // the offline time back to the server deadline and resync.
@@ -186,6 +189,37 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, token]);
+
+  // Server heartbeat: even when the browser reports online, the server itself
+  // may be unreachable. Ping it; on a network failure show the "Connection
+  // error" popup (and pause the timer) until it responds again.
+  useEffect(() => {
+    if (!live) return;
+    let stop = false;
+    let wasDown = false;
+    const ping = async () => {
+      try {
+        const res = await fetch(`${browserApiBase}/api/exam/${token}`, { method: "GET" });
+        const data = await res.json().catch(() => null);
+        if (stop) return;
+        setServerDown(false);
+        // Resync the deadline once the server is reachable again.
+        if (wasDown && res.ok && data) applyState(data as ExamState);
+        wasDown = false;
+      } catch {
+        if (!stop) {
+          setServerDown(true);
+          wasDown = true;
+        }
+      }
+    };
+    ping();
+    const id = setInterval(ping, 8000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+  }, [live, token, applyState]);
 
   // Tab/focus monitoring.
   useEffect(() => {
@@ -446,7 +480,10 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
     try {
       await call(`${token}/answer`, "PUT", { question_id: questionId, response });
     } catch (e) {
-      setError((e as Error).message);
+      // A network-level failure (fetch throws TypeError) means the server is
+      // unreachable — surface the Connection error popup immediately.
+      if (e instanceof TypeError) setServerDown(true);
+      else setError((e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -590,6 +627,19 @@ export default function ExamPage({ params }: { params: Promise<{ token: string }
             <p style={{ color: "var(--muted)" }}>
               Your timer is <strong>paused</strong>. Stay on this page — the assessment will
               resume automatically once your connection is back.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {serverDown && !disconnected && (
+        <div style={overlayStyle}>
+          <div style={{ ...cardStyle, maxWidth: 420, textAlign: "center" }}>
+            <div style={{ fontSize: 40 }}>⚠️</div>
+            <h2>Connection error</h2>
+            <p style={{ color: "var(--muted)" }}>
+              We can&apos;t reach the server. Your timer is <strong>paused</strong> — keep
+              this page open and it will reconnect automatically.
             </p>
           </div>
         </div>
